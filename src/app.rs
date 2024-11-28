@@ -1,5 +1,90 @@
 use std::collections::{HashMap, HashSet};
 
+use base64::{prelude::BASE64_STANDARD, Engine};
+use tui_textarea::TextArea;
+
+#[derive(Clone, Debug)]
+pub enum AuthType {
+    None,
+    Basic,
+    // We can add more auth types later like:
+    // Bearer,
+    // OAuth2,
+    // etc.
+}
+
+impl AuthType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            AuthType::None => "None",
+            AuthType::Basic => "Basic",
+        }
+    }
+
+    pub fn next(&self) -> Self {
+        match self {
+            AuthType::None => AuthType::Basic,
+            AuthType::Basic => AuthType::None,
+        }
+    }
+
+    pub fn previous(&self) -> Self {
+        match self {
+            AuthType::None => AuthType::Basic,
+            AuthType::Basic => AuthType::None,
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct BasicAuth {
+    pub username: String,
+    pub password: String,
+}
+
+#[derive(Clone, Debug)]
+pub enum AuthDetails {
+    None,
+    Basic(BasicAuth),
+}
+
+#[derive(Clone, Debug)]
+pub struct RequestDetails {
+    pub url: String,
+    pub body: String,
+    pub headers: HashMap<String, String>,
+    pub auth_type: AuthType,
+    pub auth_details: AuthDetails,
+}
+
+impl RequestDetails {
+    pub fn new() -> Self {
+        Self {
+            url: String::new(),
+            body: String::new(),
+            headers: HashMap::new(),
+            auth_type: AuthType::None,
+            auth_details: AuthDetails::None,
+        }
+    }
+
+    pub fn get_basic_auth(&self) -> Option<&BasicAuth> {
+        if let AuthDetails::Basic(basic) = &self.auth_details {
+            Some(basic)
+        } else {
+            None
+        }
+    }
+
+    pub fn get_basic_auth_mut(&mut self) -> Option<&mut BasicAuth> {
+        if let AuthDetails::Basic(basic) = &mut self.auth_details {
+            Some(basic)
+        } else {
+            None
+        }
+    }
+}
+
 
 #[derive(PartialEq)]
 pub enum CurrentScreen {
@@ -10,15 +95,6 @@ pub enum CurrentScreen {
     AddingRequest,
     RequestDetail,  // New screen type
     Exiting,
-}
-
-// Add a new struct for request details
-#[derive(Clone, Debug)]
-pub struct RequestDetails {
-    pub url: String,
-    pub body: String,
-    pub headers: HashMap<String, String>,
-    pub auth: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -46,7 +122,9 @@ pub enum DetailField {
     Url,
     Body,
     Headers,
-    Auth,
+    AuthType,
+    AuthUsername,
+    AuthPassword,
     None,
 }
 
@@ -59,7 +137,8 @@ impl ApiRequest {
                 url: String::new(),
                 body: String::new(),
                 headers: HashMap::new(),
-                auth: None,
+                auth_type: AuthType::None,
+                auth_details: AuthDetails::None,
             },
         }
     }
@@ -80,6 +159,10 @@ pub struct App {
     pub selected_request_index: Option<usize>,
     pub current_detail_field: DetailField,  // Track which field is being edited
     pub temp_selected_request_index: Option<usize>, // For highlighting in main view
+    pub url_textarea: TextArea<'static>,
+    pub body_textarea: TextArea<'static>,
+    pub auth_username_textarea: TextArea<'static>,
+    pub auth_password_textarea: TextArea<'static>,
 }
 
 impl RequestType {
@@ -132,6 +215,103 @@ impl App {
             selected_request_index: None,
             current_detail_field: DetailField::None,
             temp_selected_request_index: None,
+            url_textarea: TextArea::default(),
+            body_textarea: TextArea::default(),
+            auth_username_textarea: TextArea::default(),
+            auth_password_textarea: TextArea::default(),
+        }
+    }
+
+    pub fn next_auth_type(&mut self) {
+        if let Some(request) = self.get_selected_request_mut() {
+            request.details.auth_type = request.details.auth_type.next();
+            match request.details.auth_type {
+                AuthType::Basic => {
+                    request.details.auth_details = AuthDetails::Basic(BasicAuth {
+                        username: String::new(),
+                        password: String::new(),
+                    });
+                }
+                AuthType::None => {
+                    request.details.auth_details = AuthDetails::None;
+                    // Remove Authorization header when switching to None
+                    request.details.headers.remove("Authorization");
+                }
+            }
+        }
+    }
+
+    pub fn previous_auth_type(&mut self) {
+        if let Some(request) = self.get_selected_request_mut() {
+            request.details.auth_type = request.details.auth_type.previous();
+            match request.details.auth_type {
+                AuthType::Basic => {
+                    request.details.auth_details = AuthDetails::Basic(BasicAuth {
+                        username: String::new(),
+                        password: String::new(),
+                    });
+                }
+                AuthType::None => {
+                    request.details.auth_details = AuthDetails::None;
+                    // Remove Authorization header when switching to None
+                    request.details.headers.remove("Authorization");
+                }
+            }
+        }
+    }
+
+    pub fn sync_textarea_content(&mut self) {
+        if let Some(request) = self.get_selected_request() {
+            let url = request.details.url.clone();
+            let body = request.details.body.clone();
+            let auth_username = request.details.get_basic_auth().map(|auth| auth.username.clone());
+            let auth_password = request.details.get_basic_auth().map(|auth| auth.password.clone());
+
+            self.url_textarea = TextArea::from(vec![url]);
+            self.body_textarea = TextArea::from(vec![body]);
+            
+            if let Some(username) = auth_username {
+                self.auth_username_textarea = TextArea::from(vec![username]);
+            } else {
+                self.auth_username_textarea = TextArea::default();
+            }
+
+            if let Some(password) = auth_password {
+                self.auth_password_textarea = TextArea::from(vec![password]);
+            } else {
+                self.auth_password_textarea = TextArea::default();
+            }
+        }
+    }
+
+    pub fn save_textarea_content(&mut self) {
+        // Get all text values first to avoid borrowing conflicts
+        let url = self.url_textarea.lines()[0].to_string();
+        let body = self.body_textarea.lines()[0].to_string();
+        let username = self.auth_username_textarea.lines()[0].to_string();
+        let password = self.auth_password_textarea.lines()[0].to_string();
+
+        if let Some(request) = self.get_selected_request_mut() {
+            request.details.url = url;
+            request.details.body = body;
+            
+            if let Some(basic_auth) = request.details.get_basic_auth_mut() {
+                basic_auth.username = username.clone();
+                basic_auth.password = password.clone();
+                
+                // Update the Authorization header for Basic Auth
+                if !username.is_empty() {
+                    let auth_string = format!("{}:{}", username, password);
+                    let encoded = BASE64_STANDARD.encode(auth_string.as_bytes());
+                    request.details.headers.insert(
+                        "Authorization".to_string(),
+                        format!("Basic {}", encoded)
+                    );
+                } else {
+                    // Remove the Authorization header if username is empty
+                    request.details.headers.remove("Authorization");
+                }
+            }
         }
     }
 
@@ -299,45 +479,40 @@ impl App {
     }
 
     pub fn push_to_field(&mut self, c: char) {
-        // Store the current field type before the mutable borrow
-        let current_field = self.current_detail_field.clone();
-        
-        if let Some(request) = self.get_selected_request_mut() {
-            match current_field {
-                DetailField::Url => request.details.url.push(c),
-                DetailField::Body => request.details.body.push(c),
-                DetailField::Headers => {}, // TODO: Implement header editing
-                DetailField::Auth => {
-                    if let Some(ref mut auth) = request.details.auth {
-                        auth.push(c);
-                    } else {
-                        request.details.auth = Some(String::from(c));
-                    }
-                },
-                DetailField::None => {}
-            }
+        match self.current_detail_field {
+            DetailField::Url => {
+                self.url_textarea.insert_char(c);
+            },
+            DetailField::Body => {
+                self.body_textarea.insert_char(c);
+            },
+            DetailField::Headers => {}, // TODO: Implement header editing
+            DetailField::AuthUsername => {
+                self.auth_username_textarea.insert_char(c);
+            },
+            DetailField::AuthPassword => {
+                self.auth_password_textarea.insert_char(c);
+            },
+            DetailField::AuthType | DetailField::None => {}
         }
     }
-
+    
     pub fn pop_from_field(&mut self) {
-        // Store the current field type before the mutable borrow
-        let current_field = self.current_detail_field.clone();
-        
-        if let Some(request) = self.get_selected_request_mut() {
-            match current_field {
-                DetailField::Url => { request.details.url.pop(); }
-                DetailField::Body => { request.details.body.pop(); }
-                DetailField::Headers => {}, // TODO: Implement header editing
-                DetailField::Auth => {
-                    if let Some(ref mut auth) = request.details.auth {
-                        auth.pop();
-                        if auth.is_empty() {
-                            request.details.auth = None;
-                        }
-                    }
-                },
-                DetailField::None => {}
-            }
+        match self.current_detail_field {
+            DetailField::Url => {
+                self.url_textarea.delete_char();
+            },
+            DetailField::Body => {
+                self.body_textarea.delete_char();
+            },
+            DetailField::Headers => {}, // TODO: Implement header editing
+            DetailField::AuthUsername => {
+                self.auth_username_textarea.delete_char();
+            },
+            DetailField::AuthPassword => {
+                self.auth_password_textarea.delete_char();
+            },
+            DetailField::AuthType | DetailField::None => {}
         }
     }
 }

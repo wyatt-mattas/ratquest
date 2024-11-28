@@ -201,6 +201,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
                     },
                     CurrentScreen::RequestDetail => match key.code {
                         KeyCode::Esc => {
+                            app.save_textarea_content();
                             app.current_screen = CurrentScreen::Main;
                             app.selected_request_index = None;
                             app.current_detail_field = DetailField::None;
@@ -210,26 +211,64 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
                                 DetailField::None => DetailField::Url,
                                 DetailField::Url => DetailField::Body,
                                 DetailField::Body => DetailField::Headers,
-                                DetailField::Headers => DetailField::Auth,
-                                DetailField::Auth => DetailField::None,
+                                DetailField::Headers => DetailField::AuthType,
+                                DetailField::AuthType => DetailField::AuthUsername,
+                                DetailField::AuthUsername => DetailField::AuthPassword,
+                                DetailField::AuthPassword => DetailField::None,
                             };
                         }
                         KeyCode::BackTab => {
                             app.current_detail_field = match app.current_detail_field {
-                                DetailField::None => DetailField::Auth,
+                                DetailField::None => DetailField::AuthPassword,
                                 DetailField::Url => DetailField::None,
                                 DetailField::Body => DetailField::Url,
                                 DetailField::Headers => DetailField::Body,
-                                DetailField::Auth => DetailField::Headers,
+                                DetailField::AuthType => DetailField::Headers,
+                                DetailField::AuthUsername => DetailField::AuthType,
+                                DetailField::AuthPassword => DetailField::AuthUsername,
                             };
                         }
-                        KeyCode::Char(c) => {
-                            app.push_to_field(c);
+                        KeyCode::Left => {
+                            if app.current_detail_field == DetailField::AuthType {
+                                app.previous_auth_type();
+                            } else {
+                                match app.current_detail_field {
+                                    DetailField::Url => app.url_textarea.input(Event::Key(key)),
+                                    DetailField::Body => app.body_textarea.input(Event::Key(key)),
+                                    DetailField::AuthUsername => app.auth_username_textarea.input(Event::Key(key)),
+                                    DetailField::AuthPassword => app.auth_password_textarea.input(Event::Key(key)),
+                                    DetailField::Headers => false, // Headers are not currently editable
+                                    DetailField::AuthType => false, // Auth type is only changed via left/right arrows
+                                    DetailField::None => false, // No field selected, nothing to do
+                                };
+                            }
                         }
-                        KeyCode::Backspace => {
-                            app.pop_from_field();
+                        KeyCode::Right => {
+                            if app.current_detail_field == DetailField::AuthType {
+                                app.next_auth_type();
+                            } else {
+                                match app.current_detail_field {
+                                    DetailField::Url => app.url_textarea.input(Event::Key(key)),
+                                    DetailField::Body => app.body_textarea.input(Event::Key(key)),
+                                    DetailField::AuthUsername => app.auth_username_textarea.input(Event::Key(key)),
+                                    DetailField::AuthPassword => app.auth_password_textarea.input(Event::Key(key)),
+                                    DetailField::Headers => false, // Headers are not currently editable
+                                    DetailField::AuthType => false, // Auth type is only changed via left/right arrows
+                                    DetailField::None => false, // No field selected, nothing to do
+                                };
+                            }
                         }
-                        _ => {}
+                        _ => {
+                            match app.current_detail_field {
+                                DetailField::Url => app.url_textarea.input(Event::Key(key)),
+                                DetailField::Body => app.body_textarea.input(Event::Key(key)),
+                                DetailField::AuthUsername => app.auth_username_textarea.input(Event::Key(key)),
+                                DetailField::AuthPassword => app.auth_password_textarea.input(Event::Key(key)),
+                                DetailField::Headers => false, // Headers are not currently editable
+                                DetailField::AuthType => false, // Auth type is only changed via left/right arrows
+                                DetailField::None => false, // No field selected, nothing to do
+                            };
+                        }
                     },
                 }
             }
