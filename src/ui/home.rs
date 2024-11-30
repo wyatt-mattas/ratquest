@@ -1,26 +1,18 @@
-use ratatui::{
+use tuirealm::ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Style},
     text::{Line, Span, Text},
-    widgets::{Block, Borders, Clear, List, ListItem, Paragraph, Wrap},
+    widgets::{Block, Borders, Clear, Paragraph, Wrap},
     Frame,
 };
 
 use crate::app::{App, CurrentScreen, Groups, RequestType};
-use crate::ui::request_detail::render_request_detail;
 
-pub fn ui(frame: &mut Frame, app: &App) {
-    match app.current_screen {
-        CurrentScreen::RequestDetail => {
-            render_request_detail(frame, app);
-        }
-        _ => {
-            render_main_ui(frame, app);
-        }
-    }
+pub fn ui(frame: &mut Frame, app: &mut App) {
+    render_main_ui(frame, app);
 }
 
-fn render_main_ui(frame: &mut Frame, app: &App) {
+fn render_main_ui(frame: &mut Frame, app: &mut App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -43,67 +35,26 @@ fn render_main_ui(frame: &mut Frame, app: &App) {
 
     frame.render_widget(title, chunks[0]);
 
-    // Groups List
-    let mut list_items = Vec::new();
-    let empty_vec = Vec::new();
+    // Main body layout
+    let inner_layout = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints(vec![Constraint::Percentage(25), Constraint::Percentage(75)])
+        .split(chunks[1]);
 
-    for (index, group_name) in app.groups_vec.iter().enumerate() {
-        // Determine if this group is selected
-        let is_selected = app.selected_group_index == Some(index);
-        let is_minimized = app.minimized_groups.contains(group_name);
+    // Render the tree view in the left panel
+    app.render_tree_view(frame, inner_layout[0]);
 
-        // Add group name with arrow indicating minimized state
-        let arrow = if is_minimized { "▶" } else { "▼" };
-        let group_style = if is_selected {
-            Style::default().fg(Color::Yellow).bg(Color::DarkGray)
-        } else {
-            Style::default().fg(Color::Yellow)
-        };
+    // Render the details view in the right panel
+    frame.render_widget(
+        Paragraph::new("Details View")
+            .block(Block::default().borders(Borders::ALL).title("Details")),
+        inner_layout[1],
+    );
 
-        list_items.push(ListItem::new(Line::from(vec![Span::styled(
-            format!("{} {}", arrow, group_name),
-            group_style,
-        )])));
-
-        // Only show requests if group is not minimized
-        if !is_minimized {
-            let requests = app.list.get(group_name).unwrap_or(&empty_vec);
-            for (request_index, request) in requests.iter().enumerate() {
-                let request_type_color = match request.request_type {
-                    RequestType::GET => Color::Green,
-                    RequestType::POST => Color::Blue,
-                    RequestType::PUT => Color::Yellow,
-                    RequestType::DELETE => Color::Red,
-                    RequestType::PATCH => Color::Magenta,
-                };
-        
-                // Determine if this request is selected
-                let is_selected = app.selected_group_index == Some(index) && 
-                                 app.temp_selected_request_index == Some(request_index);
-                
-                let style = if is_selected {
-                    Style::default().fg(Color::White).bg(Color::DarkGray)
-                } else {
-                    Style::default().fg(Color::White)
-                };
-        
-                list_items.push(ListItem::new(Line::from(vec![
-                    Span::raw("  "), // Indentation
-                    Span::styled(
-                        format!("[{}]", request.request_type.as_str()),
-                        Style::default().fg(request_type_color),
-                    ),
-                    Span::raw(" "),
-                    Span::styled(&request.name, style),
-                ])));
-            }
-        }
-    }
-
-    let list =
-        List::new(list_items).block(Block::default().borders(Borders::ALL).title("API Groups"));
-
-    frame.render_widget(list, chunks[1]);
+    frame.render_widget(
+        Paragraph::new("inner 1").block(Block::new().borders(Borders::ALL)),
+        inner_layout[1],
+    );
 
     // Footer
     let current_navigation_text = vec![
@@ -120,7 +71,9 @@ fn render_main_ui(frame: &mut Frame, app: &App) {
             CurrentScreen::AddingRequest => {
                 Span::styled("Adding Request", Style::default().fg(Color::Yellow))
             }
-            CurrentScreen::RequestDetail => Span::styled("Request Detail", Style::default().fg(Color::Blue)),
+            CurrentScreen::RequestDetail => {
+                Span::styled("Request Detail", Style::default().fg(Color::Blue))
+            }
         },
         Span::styled(" | ", Style::default().fg(Color::White)),
         if app.groups.is_some() {
@@ -202,54 +155,54 @@ fn render_main_ui(frame: &mut Frame, app: &App) {
         frame.render_widget(input, input_area);
     }
 
-    // Delete selection popup
-    if app.current_screen == CurrentScreen::Deleting {
-        let popup_block = Block::default()
-            .title("Select Group to Delete")
-            .borders(Borders::ALL)
-            .style(Style::default().bg(Color::DarkGray));
+    // // Delete selection popup
+    // if app.current_screen == CurrentScreen::Deleting {
+    //     let popup_block = Block::default()
+    //         .title("Select Group to Delete")
+    //         .borders(Borders::ALL)
+    //         .style(Style::default().bg(Color::DarkGray));
 
-        let area = centered_rect(60, 25, frame.area());
-        frame.render_widget(Clear, area);
+    //     let area = centered_rect(60, 25, frame.area());
+    //     frame.render_widget(Clear, area);
 
-        let mut items: Vec<ListItem> = Vec::new();
-        for (i, group_name) in app.groups_vec.iter().enumerate() {
-            let style = if i == app.selected_index {
-                Style::default().fg(Color::Black).bg(Color::White)
-            } else {
-                Style::default().fg(Color::White)
-            };
-            items.push(ListItem::new(Line::from(Span::styled(group_name, style))));
-        }
+    //     let mut items: Vec<ListItem> = Vec::new();
+    //     for (i, group_name) in app.groups_vec.iter().enumerate() {
+    //         let style = if i == app.selected_index {
+    //             Style::default().fg(Color::Black).bg(Color::White)
+    //         } else {
+    //             Style::default().fg(Color::White)
+    //         };
+    //         items.push(ListItem::new(Line::from(Span::styled(group_name, style))));
+    //     }
 
-        let list = List::new(items).block(popup_block);
-        frame.render_widget(list, area);
-    }
+    //     let list = List::new(items).block(popup_block);
+    //     frame.render_widget(list, area);
+    // }
 
-    // Delete confirmation popup
-    if app.current_screen == CurrentScreen::DeleteConfirm {
-        let popup_block = Block::default()
-            .title("Confirm Deletion")
-            .borders(Borders::ALL)
-            .style(Style::default().bg(Color::DarkGray));
+    // // Delete confirmation popup
+    // if app.current_screen == CurrentScreen::DeleteConfirm {
+    //     let popup_block = Block::default()
+    //         .title("Confirm Deletion")
+    //         .borders(Borders::ALL)
+    //         .style(Style::default().bg(Color::DarkGray));
 
-        let area = centered_rect(60, 25, frame.area());
-        frame.render_widget(Clear, area);
+    //     let area = centered_rect(60, 25, frame.area());
+    //     frame.render_widget(Clear, area);
 
-        let selected_group = &app.groups_vec[app.selected_index];
-        let text = Text::styled(
-            format!(
-                "Are you sure you want to delete '{}'? (y/n)",
-                selected_group
-            ),
-            Style::default().fg(Color::Red),
-        );
-        let paragraph = Paragraph::new(text)
-            .block(popup_block)
-            .wrap(Wrap { trim: false });
+    //     let selected_group = &app.groups_vec[app.selected_index];
+    //     let text = Text::styled(
+    //         format!(
+    //             "Are you sure you want to delete '{}'? (y/n)",
+    //             selected_group
+    //         ),
+    //         Style::default().fg(Color::Red),
+    //     );
+    //     let paragraph = Paragraph::new(text)
+    //         .block(popup_block)
+    //         .wrap(Wrap { trim: false });
 
-        frame.render_widget(paragraph, area);
-    }
+    //     frame.render_widget(paragraph, area);
+    // }
 
     // Exit popup
     if app.current_screen == CurrentScreen::Exiting {

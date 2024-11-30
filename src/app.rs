@@ -1,7 +1,16 @@
 use std::collections::{HashMap, HashSet};
 
 use base64::{prelude::BASE64_STANDARD, Engine};
+// use std::collections::HashMap;
+use tui_realm_treeview::{Node, NodeValue, Tree, TreeState, TreeWidget};
 use tui_textarea::TextArea;
+// use tuirealm::props::Alignment;
+use tuirealm::ratatui::{
+    layout::Rect,
+    style::{Color, Style},
+    widgets::{Block, Borders},
+    Frame,
+};
 
 #[derive(Clone, Debug)]
 pub enum AuthType {
@@ -85,7 +94,6 @@ impl RequestDetails {
     }
 }
 
-
 #[derive(PartialEq)]
 pub enum CurrentScreen {
     Main,
@@ -93,7 +101,7 @@ pub enum CurrentScreen {
     Deleting,
     DeleteConfirm,
     AddingRequest,
-    RequestDetail,  // New screen type
+    RequestDetail, // New screen type
     Exiting,
 }
 
@@ -101,7 +109,7 @@ pub enum CurrentScreen {
 pub struct ApiRequest {
     pub name: String,
     pub request_type: RequestType,
-    pub details: RequestDetails,  // Add details field
+    pub details: RequestDetails, // Add details field
 }
 
 pub enum Groups {
@@ -144,25 +152,83 @@ impl ApiRequest {
     }
 }
 
+// First implement Default for ApiRequest
+impl Default for ApiRequest {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            request_type: RequestType::GET,
+            details: RequestDetails {
+                url: String::new(),
+                body: String::new(),
+                headers: HashMap::new(),
+                auth_type: AuthType::None,
+                auth_details: AuthDetails::None,
+            },
+        }
+    }
+}
+
+impl NodeValue for ApiRequest {
+    fn render_parts_iter(&self) -> impl Iterator<Item = (&str, Option<Style>)> {
+        // Create a TextSpan for the request
+        let request_style = Style::default().fg(match self.request_type {
+            RequestType::GET => Color::Green,
+            RequestType::POST => Color::Blue,
+            RequestType::PUT => Color::Yellow,
+            RequestType::DELETE => Color::Red,
+            RequestType::PATCH => Color::Magenta,
+        });
+
+        std::iter::once((&self.name[..], Some(request_style)))
+    }
+}
+
+#[derive(Default, Clone)]
+pub struct TreeNode {
+    text: String,
+    style: Option<Style>,
+}
+
+impl TreeNode {
+    fn new(text: String) -> Self {
+        Self { text, style: None }
+    }
+
+    fn with_style(text: String, style: Style) -> Self {
+        Self {
+            text,
+            style: Some(style),
+        }
+    }
+}
+
+impl NodeValue for TreeNode {
+    fn render_parts_iter(&self) -> impl Iterator<Item = (&str, Option<Style>)> {
+        vec![(self.text.as_str(), self.style)].into_iter()
+    }
+}
+
 pub struct App {
     pub key_input: String,
     pub request_name_input: String,
     pub current_screen: CurrentScreen,
-    pub list: HashMap<String, Vec<ApiRequest>>,  // Changed from HashSet to HashMap to store requests
+    pub list: HashMap<String, Vec<ApiRequest>>, // Changed from HashSet to HashMap to store requests
     pub groups: Option<Groups>,
     pub selected_index: usize,
     pub groups_vec: Vec<String>,
     pub selected_request_type: RequestType,
     pub selected_group: Option<String>,
-    pub minimized_groups: HashSet<String>,  // Track which groups are minimized
+    pub minimized_groups: HashSet<String>, // Track which groups are minimized
     pub selected_group_index: Option<usize>, // Track selected group in main view
     pub selected_request_index: Option<usize>,
-    pub current_detail_field: DetailField,  // Track which field is being edited
+    pub current_detail_field: DetailField, // Track which field is being edited
     pub temp_selected_request_index: Option<usize>, // For highlighting in main view
     pub url_textarea: TextArea<'static>,
     pub body_textarea: TextArea<'static>,
     pub auth_username_textarea: TextArea<'static>,
     pub auth_password_textarea: TextArea<'static>,
+    pub tree_state: TreeState,
 }
 
 impl RequestType {
@@ -197,10 +263,9 @@ impl RequestType {
     }
 }
 
-
 impl App {
     pub fn new() -> Self {
-        App {
+        let mut app = Self {
             key_input: String::new(),
             request_name_input: String::new(),
             current_screen: CurrentScreen::Main,
@@ -219,6 +284,145 @@ impl App {
             body_textarea: TextArea::default(),
             auth_username_textarea: TextArea::default(),
             auth_password_textarea: TextArea::default(),
+            tree_state: TreeState::default(),
+        };
+
+        app.tree_state
+            .select(app.build_tree().root(), app.build_tree().root());
+        app
+    }
+
+    pub fn build_tree(&self) -> Tree<TreeNode> {
+        let mut root = Node::new("/".to_string(), TreeNode::new("API Groups".to_string()));
+
+        // Add each group as a child of the root
+        for (group_name, requests) in &self.list {
+            let mut group_node = Node::new(
+                format!("group-{}", group_name),
+                TreeNode::new(group_name.clone()),
+            );
+
+            // Add requests as children of the group
+            for request in requests {
+                // Create a unique ID for the request
+                let request_id = format!("request-{}-{}", group_name, request.name);
+
+                // Create the display text with color formatting
+                let (symbol, style) = match request.request_type {
+                    RequestType::GET => ("○", Style::default().fg(Color::Green)),
+                    RequestType::POST => ("+", Style::default().fg(Color::Blue)),
+                    RequestType::PUT => ("↺", Style::default().fg(Color::Yellow)),
+                    RequestType::DELETE => ("-", Style::default().fg(Color::Red)),
+                    RequestType::PATCH => ("~", Style::default().fg(Color::Magenta)),
+                };
+
+                let display_text = format!(
+                    "{} {} {}",
+                    symbol,
+                    request.request_type.as_str(),
+                    request.name
+                );
+                let request_node = Node::new(request_id, TreeNode::with_style(display_text, style));
+                group_node.add_child(request_node);
+            }
+
+            root.add_child(group_node);
+        }
+
+        Tree::new(root)
+    }
+
+    pub fn render_tree_view(&mut self, frame: &mut Frame, area: Rect) {
+        let tree = self.build_tree();
+
+        let tree_widget = TreeWidget::new(&tree)
+            .block(Block::default().borders(Borders::ALL).title("API Groups"))
+            .highlight_style(Style::default().fg(Color::Yellow).bg(Color::DarkGray))
+            .style(Style::default().fg(Color::White))
+            .indent_size(2)
+            .highlight_symbol("→ ".to_string());
+
+        frame.render_stateful_widget(tree_widget, area, &mut self.tree_state);
+    }
+
+    // Handle selecting a request from the tree
+    pub fn handle_tree_selection(&mut self) -> Option<(String, usize)> {
+        let selected_id = self.tree_state.selected()?;
+
+        // Check if it's a request node
+        if selected_id.starts_with("request-") {
+            let parts: Vec<&str> = selected_id.splitn(3, '-').collect();
+            if parts.len() == 3 {
+                let group_name = parts[1].to_string();
+
+                if let Some(requests) = self.list.get(&group_name) {
+                    for (idx, request) in requests.iter().enumerate() {
+                        if request.name == parts[2] {
+                            // Update selected group index
+                            self.selected_group_index =
+                                self.groups_vec.iter().position(|g| g == &group_name);
+                            return Some((group_name, idx));
+                        }
+                    }
+                }
+            }
+        } else if selected_id.starts_with("group-") {
+            let group_name = selected_id.strip_prefix("group-")?.to_string();
+            self.selected_group_index = self.groups_vec.iter().position(|g| g == &group_name);
+        }
+        None
+    }
+
+    // Add this to handle opening request details when Enter is pressed
+    pub fn handle_tree_enter(&mut self) {
+        if let Some((group_name, request_idx)) = self.handle_tree_selection() {
+            self.selected_group_index = Some(
+                self.groups_vec
+                    .iter()
+                    .position(|g| g == &group_name)
+                    .unwrap_or(0),
+            );
+            self.selected_request_index = Some(request_idx);
+            self.current_screen = CurrentScreen::RequestDetail;
+        }
+    }
+
+    // Add these methods to handle tree navigation
+    pub fn tree_next(&mut self) {
+        let tree = self.build_tree();
+        self.tree_state.move_down(tree.root());
+    }
+
+    pub fn tree_previous(&mut self) {
+        let tree = self.build_tree();
+        self.tree_state.move_up(tree.root());
+    }
+
+    pub fn tree_toggle(&mut self) {
+        let tree = self.build_tree();
+        if let Some(id) = self.tree_state.selected() {
+            if let Some(node) = tree.root().query(&id.to_string()) {
+                if self.tree_state.is_open(node) {
+                    self.tree_state.close(tree.root());
+                } else {
+                    self.tree_state.open(tree.root());
+                }
+            }
+        }
+    }
+
+    pub fn add_request(&mut self, group_name: String) {
+        self.selected_group = Some(group_name);
+        self.current_screen = CurrentScreen::AddingRequest;
+
+        // Select the group in the tree
+        let tree = self.build_tree();
+        if let Some(group_node) = tree
+            .root()
+            .query(&format!("group-{}", self.selected_group.as_ref().unwrap()))
+        {
+            self.tree_state.select(tree.root(), group_node);
+            self.tree_state.open(tree.root());
         }
     }
 
@@ -264,12 +468,18 @@ impl App {
         if let Some(request) = self.get_selected_request() {
             let url = request.details.url.clone();
             let body = request.details.body.clone();
-            let auth_username = request.details.get_basic_auth().map(|auth| auth.username.clone());
-            let auth_password = request.details.get_basic_auth().map(|auth| auth.password.clone());
+            let auth_username = request
+                .details
+                .get_basic_auth()
+                .map(|auth| auth.username.clone());
+            let auth_password = request
+                .details
+                .get_basic_auth()
+                .map(|auth| auth.password.clone());
 
             self.url_textarea = TextArea::from(vec![url]);
             self.body_textarea = TextArea::from(vec![body]);
-            
+
             if let Some(username) = auth_username {
                 self.auth_username_textarea = TextArea::from(vec![username]);
             } else {
@@ -294,19 +504,19 @@ impl App {
         if let Some(request) = self.get_selected_request_mut() {
             request.details.url = url;
             request.details.body = body;
-            
+
             if let Some(basic_auth) = request.details.get_basic_auth_mut() {
                 basic_auth.username = username.clone();
                 basic_auth.password = password.clone();
-                
+
                 // Update the Authorization header for Basic Auth
                 if !username.is_empty() {
                     let auth_string = format!("{}:{}", username, password);
                     let encoded = BASE64_STANDARD.encode(auth_string.as_bytes());
-                    request.details.headers.insert(
-                        "Authorization".to_string(),
-                        format!("Basic {}", encoded)
-                    );
+                    request
+                        .details
+                        .headers
+                        .insert("Authorization".to_string(), format!("Basic {}", encoded));
                 } else {
                     // Remove the Authorization header if username is empty
                     request.details.headers.remove("Authorization");
@@ -324,7 +534,7 @@ impl App {
                         self.temp_selected_request_index = match self.temp_selected_request_index {
                             None => Some(0),
                             Some(current) if current + 1 < requests.len() => Some(current + 1),
-                            _ => Some(0) // Wrap around to the beginning
+                            _ => Some(0), // Wrap around to the beginning
                         };
                     }
                 }
@@ -340,7 +550,7 @@ impl App {
                         self.temp_selected_request_index = match self.temp_selected_request_index {
                             None => Some(requests.len() - 1),
                             Some(current) if current > 0 => Some(current - 1),
-                            _ => Some(requests.len() - 1) // Wrap around to the end
+                            _ => Some(requests.len() - 1), // Wrap around to the end
                         };
                     }
                 }
@@ -365,9 +575,28 @@ impl App {
                         self.request_name_input.clone(),
                         self.selected_request_type.clone(),
                     ));
+
+                    // After adding the request, update the tree state
+                    let tree = self.build_tree();
+
+                    // First, find and open the parent group
+                    if let Some(parent) = tree.root().query(&format!("group-{}", group_name)) {
+                        // Select the parent group and open it
+                        self.tree_state.select(tree.root(), parent);
+                        self.tree_state.open(tree.root());
+
+                        // Then try to find and select the newly added request
+                        if let Some(request_node) = tree.root().query(&format!(
+                            "request-{}-{}",
+                            group_name, self.request_name_input
+                        )) {
+                            self.tree_state.select(tree.root(), request_node);
+                        }
+                    }
+
+                    self.request_name_input.clear();
+                    self.selected_request_type = RequestType::GET;
                 }
-                self.request_name_input.clear();
-                self.selected_request_type = RequestType::GET;
             }
         }
     }
@@ -411,7 +640,10 @@ impl App {
 
     pub fn previous_group(&mut self) {
         if !self.groups_vec.is_empty() {
-            self.selected_index = self.selected_index.checked_sub(1).unwrap_or(self.groups_vec.len() - 1);
+            self.selected_index = self
+                .selected_index
+                .checked_sub(1)
+                .unwrap_or(self.groups_vec.len() - 1);
         }
     }
 
@@ -428,7 +660,9 @@ impl App {
             let group_to_delete = self.groups_vec[self.selected_index].clone();
             self.list.remove(&group_to_delete);
             self.update_groups_vec();
-            self.selected_index = self.selected_index.min(self.groups_vec.len().saturating_sub(1));
+            self.selected_index = self
+                .selected_index
+                .min(self.groups_vec.len().saturating_sub(1));
         }
     }
 
@@ -453,7 +687,7 @@ impl App {
             self.selected_group_index = None;
             return;
         }
-        
+
         self.selected_group_index = Some(match self.selected_group_index {
             None => 0,
             Some(current) => (current + 1) % self.groups_vec.len(),
@@ -482,36 +716,36 @@ impl App {
         match self.current_detail_field {
             DetailField::Url => {
                 self.url_textarea.insert_char(c);
-            },
+            }
             DetailField::Body => {
                 self.body_textarea.insert_char(c);
-            },
-            DetailField::Headers => {}, // TODO: Implement header editing
+            }
+            DetailField::Headers => {} // TODO: Implement header editing
             DetailField::AuthUsername => {
                 self.auth_username_textarea.insert_char(c);
-            },
+            }
             DetailField::AuthPassword => {
                 self.auth_password_textarea.insert_char(c);
-            },
+            }
             DetailField::AuthType | DetailField::None => {}
         }
     }
-    
+
     pub fn pop_from_field(&mut self) {
         match self.current_detail_field {
             DetailField::Url => {
                 self.url_textarea.delete_char();
-            },
+            }
             DetailField::Body => {
                 self.body_textarea.delete_char();
-            },
-            DetailField::Headers => {}, // TODO: Implement header editing
+            }
+            DetailField::Headers => {} // TODO: Implement header editing
             DetailField::AuthUsername => {
                 self.auth_username_textarea.delete_char();
-            },
+            }
             DetailField::AuthPassword => {
                 self.auth_password_textarea.delete_char();
-            },
+            }
             DetailField::AuthType | DetailField::None => {}
         }
     }

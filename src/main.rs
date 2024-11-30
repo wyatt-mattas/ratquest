@@ -3,14 +3,14 @@ pub mod ui;
 
 use app::{App, CurrentScreen, DetailField, Groups, RequestType};
 use std::io;
-use ratatui::{
-    backend::{Backend, CrosstermBackend},
-    Terminal,
-};
-use ratatui::crossterm::{
+use tuirealm::ratatui::crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+};
+use tuirealm::ratatui::{
+    backend::{Backend, CrosstermBackend},
+    Terminal,
 };
 
 use ui::ui;
@@ -47,6 +47,21 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
             if key.kind == KeyEventKind::Press {
                 match app.current_screen {
                     CurrentScreen::Main => match key.code {
+                        KeyCode::Enter => {
+                            app.handle_tree_enter();
+                        }
+                        KeyCode::Down => {
+                            app.tree_next();
+                        }
+                        KeyCode::Up => {
+                            app.tree_previous();
+                        }
+                        KeyCode::Right => {
+                            app.tree_toggle();
+                        }
+                        KeyCode::Left => {
+                            app.tree_toggle();
+                        }
                         KeyCode::Char('q') => {
                             app.current_screen = CurrentScreen::Exiting;
                         }
@@ -60,44 +75,17 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
                                 app.current_screen = CurrentScreen::Deleting;
                             }
                         }
-                        KeyCode::Right => {
-                            if let Some(index) = app.selected_group_index {
-                                if index < app.groups_vec.len() {
-                                    let group_name = &app.groups_vec[index].clone();
-                                    app.toggle_group_minimized(group_name);
-                                }
-                            }
-                        }
-                        KeyCode::Left => {
-                            if let Some(index) = app.selected_group_index {
-                                if index < app.groups_vec.len() {
-                                    let group_name = &app.groups_vec[index].clone();
-                                    app.minimized_groups.remove(group_name);
-                                }
-                            }
-                        }
-                        KeyCode::Up => {
-                            app.previous_visible_group();
-                        }
-                        KeyCode::Down => {
-                            app.next_visible_group();
-                        }
                         KeyCode::Char('a') => {
                             if !app.list.is_empty() {
-                                if let Some(index) = app.selected_group_index {
-                                    app.selected_group = Some(app.groups_vec[index].clone());
-                                    app.current_screen = CurrentScreen::AddingRequest;
-                                }
-                            }
-                        }
-                        KeyCode::Enter => {
-                            if let Some(group_index) = app.selected_group_index {
-                                if let Some(group_name) = app.groups_vec.get(group_index) {
-                                    if let Some(requests) = app.list.get(group_name) {
-                                        if !requests.is_empty() {
-                                            // Use the temp_selected_request_index if it exists, otherwise use 0
-                                            app.selected_request_index = app.temp_selected_request_index.or(Some(0));
-                                            app.current_screen = CurrentScreen::RequestDetail;
+                                if let Some(selected_id) = app.tree_state.selected() {
+                                    if selected_id.starts_with("group-") {
+                                        let group_name =
+                                            selected_id.strip_prefix("group-").unwrap().to_string();
+                                        app.add_request(group_name);
+                                    } else if selected_id.starts_with("request-") {
+                                        let parts: Vec<&str> = selected_id.splitn(3, '-').collect();
+                                        if parts.len() == 3 {
+                                            app.add_request(parts[1].to_string());
                                         }
                                     }
                                 }
@@ -235,8 +223,12 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
                                 match app.current_detail_field {
                                     DetailField::Url => app.url_textarea.input(Event::Key(key)),
                                     DetailField::Body => app.body_textarea.input(Event::Key(key)),
-                                    DetailField::AuthUsername => app.auth_username_textarea.input(Event::Key(key)),
-                                    DetailField::AuthPassword => app.auth_password_textarea.input(Event::Key(key)),
+                                    DetailField::AuthUsername => {
+                                        app.auth_username_textarea.input(Event::Key(key))
+                                    }
+                                    DetailField::AuthPassword => {
+                                        app.auth_password_textarea.input(Event::Key(key))
+                                    }
                                     DetailField::Headers => false, // Headers are not currently editable
                                     DetailField::AuthType => false, // Auth type is only changed via left/right arrows
                                     DetailField::None => false, // No field selected, nothing to do
@@ -250,8 +242,12 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
                                 match app.current_detail_field {
                                     DetailField::Url => app.url_textarea.input(Event::Key(key)),
                                     DetailField::Body => app.body_textarea.input(Event::Key(key)),
-                                    DetailField::AuthUsername => app.auth_username_textarea.input(Event::Key(key)),
-                                    DetailField::AuthPassword => app.auth_password_textarea.input(Event::Key(key)),
+                                    DetailField::AuthUsername => {
+                                        app.auth_username_textarea.input(Event::Key(key))
+                                    }
+                                    DetailField::AuthPassword => {
+                                        app.auth_password_textarea.input(Event::Key(key))
+                                    }
                                     DetailField::Headers => false, // Headers are not currently editable
                                     DetailField::AuthType => false, // Auth type is only changed via left/right arrows
                                     DetailField::None => false, // No field selected, nothing to do
@@ -262,11 +258,15 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
                             match app.current_detail_field {
                                 DetailField::Url => app.url_textarea.input(Event::Key(key)),
                                 DetailField::Body => app.body_textarea.input(Event::Key(key)),
-                                DetailField::AuthUsername => app.auth_username_textarea.input(Event::Key(key)),
-                                DetailField::AuthPassword => app.auth_password_textarea.input(Event::Key(key)),
+                                DetailField::AuthUsername => {
+                                    app.auth_username_textarea.input(Event::Key(key))
+                                }
+                                DetailField::AuthPassword => {
+                                    app.auth_password_textarea.input(Event::Key(key))
+                                }
                                 DetailField::Headers => false, // Headers are not currently editable
                                 DetailField::AuthType => false, // Auth type is only changed via left/right arrows
-                                DetailField::None => false, // No field selected, nothing to do
+                                DetailField::None => false,     // No field selected, nothing to do
                             };
                         }
                     },
