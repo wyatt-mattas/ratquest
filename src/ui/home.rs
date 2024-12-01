@@ -1,26 +1,21 @@
-use ratatui::{
-    layout::{Constraint, Direction, Layout, Rect},
-    style::{Color, Style},
-    text::{Line, Span, Text},
-    widgets::{Block, Borders, Clear, List, ListItem, Paragraph, Wrap},
-    Frame,
+use tuirealm::{
+    props::Alignment,
+    ratatui::{
+        layout::{Constraint, Direction, Layout, Rect},
+        style::{Color, Style},
+        text::{Line, Span, Text},
+        widgets::{Block, Borders, Clear, Paragraph, Wrap},
+        Frame,
+    },
 };
 
-use crate::app::{App, CurrentScreen, Groups, RequestType};
-use crate::ui::request_detail::render_request_detail;
+use crate::app::{ActivePanel, App, CurrentScreen, DetailField, Groups, RequestType};
 
-pub fn ui(frame: &mut Frame, app: &App) {
-    match app.current_screen {
-        CurrentScreen::RequestDetail => {
-            render_request_detail(frame, app);
-        }
-        _ => {
-            render_main_ui(frame, app);
-        }
-    }
+pub fn ui(frame: &mut Frame, app: &mut App) {
+    render_main_ui(frame, app);
 }
 
-fn render_main_ui(frame: &mut Frame, app: &App) {
+fn render_main_ui(frame: &mut Frame, app: &mut App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -43,67 +38,184 @@ fn render_main_ui(frame: &mut Frame, app: &App) {
 
     frame.render_widget(title, chunks[0]);
 
-    // Groups List
-    let mut list_items = Vec::new();
-    let empty_vec = Vec::new();
+    // Main body layout
+    let inner_layout = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints(vec![Constraint::Percentage(25), Constraint::Percentage(75)])
+        .split(chunks[1]);
 
-    for (index, group_name) in app.groups_vec.iter().enumerate() {
-        // Determine if this group is selected
-        let is_selected = app.selected_group_index == Some(index);
-        let is_minimized = app.minimized_groups.contains(group_name);
-
-        // Add group name with arrow indicating minimized state
-        let arrow = if is_minimized { "▶" } else { "▼" };
-        let group_style = if is_selected {
-            Style::default().fg(Color::Yellow).bg(Color::DarkGray)
-        } else {
+    let tree_block = Block::default()
+        .borders(Borders::ALL)
+        .title("API Groups")
+        .style(if app.active_panel == ActivePanel::Tree {
             Style::default().fg(Color::Yellow)
-        };
+        } else {
+            Style::default()
+        });
 
-        list_items.push(ListItem::new(Line::from(vec![Span::styled(
-            format!("{} {}", arrow, group_name),
-            group_style,
-        )])));
+    let tree_area = tree_block.inner(inner_layout[0]);
+    frame.render_widget(tree_block, inner_layout[0]);
+    app.render_tree_view(frame, tree_area);
 
-        // Only show requests if group is not minimized
-        if !is_minimized {
-            let requests = app.list.get(group_name).unwrap_or(&empty_vec);
-            for (request_index, request) in requests.iter().enumerate() {
-                let request_type_color = match request.request_type {
-                    RequestType::GET => Color::Green,
-                    RequestType::POST => Color::Blue,
-                    RequestType::PUT => Color::Yellow,
-                    RequestType::DELETE => Color::Red,
-                    RequestType::PATCH => Color::Magenta,
-                };
-        
-                // Determine if this request is selected
-                let is_selected = app.selected_group_index == Some(index) && 
-                                 app.temp_selected_request_index == Some(request_index);
-                
-                let style = if is_selected {
-                    Style::default().fg(Color::White).bg(Color::DarkGray)
+    // Update the details block:
+    let details_block = Block::default()
+        .borders(Borders::ALL)
+        .title("Details")
+        .style(if app.active_panel == ActivePanel::Details {
+            Style::default()
+        } else {
+            Style::default()
+        });
+
+    let inner_area = details_block.inner(inner_layout[1]);
+    frame.render_widget(details_block, inner_layout[1]);
+
+    // Render the details view in the right panel
+    if let Some(request) = app.get_current_request() {
+        // Create the layout for the right panel within the block
+        let details_layout = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(3), // URL
+                Constraint::Length(6), // Body
+                Constraint::Length(8), // Headers
+                Constraint::Length(8), // Auth
+            ])
+            .split(inner_area);
+
+        // URL Section
+        let url_block = Block::default().borders(Borders::ALL).title("URL").style(
+            if app.current_detail_field == DetailField::Url {
+                Style::default().fg(Color::Yellow)
+            } else {
+                Style::default()
+            },
+        );
+
+        let url_area = url_block.inner(details_layout[0]);
+        frame.render_widget(url_block, details_layout[0]);
+        frame.render_widget(
+            Paragraph::new(app.url_textarea.lines().join("\n")).style(Style::default()),
+            url_area,
+        );
+
+        // Body Section
+        let body_block = Block::default().borders(Borders::ALL).title("Body").style(
+            if app.current_detail_field == DetailField::Body {
+                Style::default().fg(Color::Yellow)
+            } else {
+                Style::default()
+            },
+        );
+
+        let body_area = body_block.inner(details_layout[1]);
+        frame.render_widget(body_block, details_layout[1]);
+        frame.render_widget(
+            Paragraph::new(app.body_textarea.lines().join("\n")).style(Style::default()),
+            body_area,
+        );
+
+        // Headers Section
+        let headers_text = request
+            .details
+            .headers
+            .iter()
+            .map(|(k, v)| format!("{}: {}", k, v))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let headers = Paragraph::new(headers_text).block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Headers")
+                .style(if app.current_detail_field == DetailField::Headers {
+                    Style::default().fg(Color::Yellow)
                 } else {
-                    Style::default().fg(Color::White)
-                };
-        
-                list_items.push(ListItem::new(Line::from(vec![
-                    Span::raw("  "), // Indentation
-                    Span::styled(
-                        format!("[{}]", request.request_type.as_str()),
-                        Style::default().fg(request_type_color),
-                    ),
-                    Span::raw(" "),
-                    Span::styled(&request.name, style),
-                ])));
+                    Style::default()
+                }),
+        );
+        frame.render_widget(headers, details_layout[2]);
+
+        // Auth Section
+        let auth_layout = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(3), // Auth Type
+                Constraint::Min(1),    // Auth Details
+            ])
+            .split(details_layout[3]);
+
+        // Auth Type
+        let auth_type_text = format!("Auth Type: {}", request.details.auth_type.as_str());
+        let auth_type =
+            Paragraph::new(auth_type_text).block(Block::default().borders(Borders::ALL).style(
+                if app.current_detail_field == DetailField::AuthType {
+                    Style::default().fg(Color::Yellow)
+                } else {
+                    Style::default()
+                },
+            ));
+        frame.render_widget(auth_type, auth_layout[0]);
+
+        // Auth Details
+        match request.details.auth_type {
+            crate::app::AuthType::None => {
+                let no_auth = Paragraph::new("No authentication required")
+                    .block(Block::default().borders(Borders::ALL));
+                frame.render_widget(no_auth, auth_layout[1]);
+            }
+            crate::app::AuthType::Basic => {
+                let basic_auth_layout = Layout::default()
+                    .direction(Direction::Vertical)
+                    .constraints([
+                        Constraint::Length(3), // Username
+                        Constraint::Length(3), // Password
+                    ])
+                    .split(auth_layout[1]);
+
+                // Username
+                let username_block = Block::default()
+                    .borders(Borders::ALL)
+                    .title("Username")
+                    .style(if app.current_detail_field == DetailField::AuthUsername {
+                        Style::default().fg(Color::Yellow)
+                    } else {
+                        Style::default()
+                    });
+
+                let username_area = username_block.inner(basic_auth_layout[0]);
+                frame.render_widget(username_block, basic_auth_layout[0]);
+                frame.render_widget(
+                    Paragraph::new(app.auth_username_textarea.lines().join("\n"))
+                        .style(Style::default()),
+                    username_area,
+                );
+
+                // Password
+                let password_block = Block::default()
+                    .borders(Borders::ALL)
+                    .title("Password")
+                    .style(if app.current_detail_field == DetailField::AuthPassword {
+                        Style::default().fg(Color::Yellow)
+                    } else {
+                        Style::default()
+                    });
+
+                let password_area = password_block.inner(basic_auth_layout[1]);
+                frame.render_widget(password_block, basic_auth_layout[1]);
+                frame.render_widget(
+                    Paragraph::new(app.auth_password_textarea.lines().join("\n"))
+                        .style(Style::default()),
+                    password_area,
+                );
             }
         }
+    } else {
+        // If no request is selected, show default message centered in the block
+        frame.render_widget(
+            Paragraph::new("Select a request to view details").alignment(Alignment::Center),
+            inner_area,
+        );
     }
-
-    let list =
-        List::new(list_items).block(Block::default().borders(Borders::ALL).title("API Groups"));
-
-    frame.render_widget(list, chunks[1]);
 
     // Footer
     let current_navigation_text = vec![
@@ -120,7 +232,9 @@ fn render_main_ui(frame: &mut Frame, app: &App) {
             CurrentScreen::AddingRequest => {
                 Span::styled("Adding Request", Style::default().fg(Color::Yellow))
             }
-            CurrentScreen::RequestDetail => Span::styled("Request Detail", Style::default().fg(Color::Blue)),
+            CurrentScreen::RequestDetail => {
+                Span::styled("Request Detail", Style::default().fg(Color::Blue))
+            }
         },
         Span::styled(" | ", Style::default().fg(Color::White)),
         if app.groups.is_some() {
@@ -135,26 +249,14 @@ fn render_main_ui(frame: &mut Frame, app: &App) {
 
     let current_keys_hint = match app.current_screen {
         CurrentScreen::Main => {
-            "(q) quit / (e) new group / (d) delete group / (a) add request / (↑↓) select group / (→←) minimize/maximize / (Tab/Shift+Tab) select request / (Enter) open request"
+            "(q) quit / (e) new group / (a) add request / (↑↓) select group / (→ ←) minimize/maximize group / (→) Details Pane on Request"
         }
-        CurrentScreen::Editing => {
-            "(ESC) cancel / (Enter) save"
-        }
-        CurrentScreen::Deleting => {
-            "(↑/↓) select group / (Enter) confirm / (ESC) cancel"
-        }
-        CurrentScreen::DeleteConfirm => {
-            "Are you sure you want to delete this group? (y/n)"
-        }
-        CurrentScreen::Exiting => {
-            "Are you sure you want to quit? (y/n)"
-        }
-        CurrentScreen::AddingRequest => {
-            "(ESC) cancel / (Enter) save / (←/→) change type"
-        }
-        CurrentScreen::RequestDetail => {
-            "(ESC) back / (Tab) next field / (Shift+Tab) previous field"
-        }
+        CurrentScreen::Editing => "(ESC) cancel / (Enter) save",
+        CurrentScreen::Deleting => "(↑/↓) select group / (Enter) confirm / (ESC) cancel",
+        CurrentScreen::DeleteConfirm => "Are you sure you want to delete this group? (y/n)",
+        CurrentScreen::Exiting => "Are you sure you want to quit? (y/n)",
+        CurrentScreen::AddingRequest => "(ESC) cancel / (Enter) save / (→) change type",
+        CurrentScreen::RequestDetail => "(ESC) back / (Tab) next field / (Shift+Tab) previous field",
     };
 
     let key_notes_footer = Paragraph::new(Line::from(Span::styled(
@@ -165,7 +267,7 @@ fn render_main_ui(frame: &mut Frame, app: &App) {
 
     let footer_chunks = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+        .constraints([Constraint::Percentage(20), Constraint::Percentage(80)])
         .split(chunks[2]);
 
     frame.render_widget(mode_footer, footer_chunks[0]);
@@ -202,54 +304,8 @@ fn render_main_ui(frame: &mut Frame, app: &App) {
         frame.render_widget(input, input_area);
     }
 
-    // Delete selection popup
-    if app.current_screen == CurrentScreen::Deleting {
-        let popup_block = Block::default()
-            .title("Select Group to Delete")
-            .borders(Borders::ALL)
-            .style(Style::default().bg(Color::DarkGray));
-
-        let area = centered_rect(60, 25, frame.area());
-        frame.render_widget(Clear, area);
-
-        let mut items: Vec<ListItem> = Vec::new();
-        for (i, group_name) in app.groups_vec.iter().enumerate() {
-            let style = if i == app.selected_index {
-                Style::default().fg(Color::Black).bg(Color::White)
-            } else {
-                Style::default().fg(Color::White)
-            };
-            items.push(ListItem::new(Line::from(Span::styled(group_name, style))));
-        }
-
-        let list = List::new(items).block(popup_block);
-        frame.render_widget(list, area);
-    }
-
-    // Delete confirmation popup
-    if app.current_screen == CurrentScreen::DeleteConfirm {
-        let popup_block = Block::default()
-            .title("Confirm Deletion")
-            .borders(Borders::ALL)
-            .style(Style::default().bg(Color::DarkGray));
-
-        let area = centered_rect(60, 25, frame.area());
-        frame.render_widget(Clear, area);
-
-        let selected_group = &app.groups_vec[app.selected_index];
-        let text = Text::styled(
-            format!(
-                "Are you sure you want to delete '{}'? (y/n)",
-                selected_group
-            ),
-            Style::default().fg(Color::Red),
-        );
-        let paragraph = Paragraph::new(text)
-            .block(popup_block)
-            .wrap(Wrap { trim: false });
-
-        frame.render_widget(paragraph, area);
-    }
+    // TODO - add delete group popup
+    // TODO - add delete request popup
 
     // Exit popup
     if app.current_screen == CurrentScreen::Exiting {
