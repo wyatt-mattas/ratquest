@@ -1,7 +1,7 @@
 pub mod app;
 pub mod ui;
 
-use app::{App, CurrentScreen, DetailField, Groups, RequestType};
+use app::{ActivePanel, App, CurrentScreen, DetailField, Groups, RequestType};
 use std::io;
 use tuirealm::ratatui::crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind},
@@ -46,67 +46,267 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
         if let Event::Key(key) = event::read()? {
             if key.kind == KeyEventKind::Press {
                 match app.current_screen {
-                    CurrentScreen::Main => match key.code {
-                        KeyCode::Enter => {
-                            app.handle_tree_enter();
-                        }
-                        KeyCode::Down => {
-                            app.tree_next();
-                        }
-                        KeyCode::Up => {
-                            app.tree_previous();
-                        }
-                        KeyCode::Right => {
-                            app.tree_toggle();
-                        }
-                        KeyCode::Left => {
-                            app.tree_toggle();
-                        }
-                        KeyCode::Char('q') => {
-                            app.current_screen = CurrentScreen::Exiting;
-                        }
-                        KeyCode::Char('e') => {
-                            app.current_screen = CurrentScreen::Editing;
-                            app.groups = Some(Groups::Name);
-                        }
-                        KeyCode::Char('d') => {
-                            if !app.list.is_empty() {
-                                app.update_groups_vec();
-                                app.current_screen = CurrentScreen::Deleting;
-                            }
-                        }
-                        KeyCode::Char('a') => {
-                            if !app.list.is_empty() {
-                                if let Some(selected_id) = app.tree_state.selected() {
-                                    if selected_id.starts_with("group-") {
-                                        let group_name =
-                                            selected_id.strip_prefix("group-").unwrap().to_string();
-                                        app.add_request(group_name);
-                                    } else if selected_id.starts_with("request-") {
-                                        let parts: Vec<&str> = selected_id.splitn(3, '-').collect();
-                                        if parts.len() == 3 {
-                                            app.add_request(parts[1].to_string());
+                    CurrentScreen::Main => {
+                        match app.active_panel {
+                            ActivePanel::Tree => match key.code {
+                                // Tree navigation
+                                KeyCode::Down => {
+                                    app.tree_next();
+                                }
+                                KeyCode::Up => {
+                                    app.tree_previous();
+                                }
+                                KeyCode::Right => {
+                                    if let Some(selected_id) = app.tree_state.selected() {
+                                        if selected_id.starts_with("request-") {
+                                            let parts: Vec<&str> =
+                                                selected_id.splitn(3, '-').collect();
+                                            if parts.len() == 3 {
+                                                let group_name = parts[1].to_string();
+                                                if let Some(group_idx) = app
+                                                    .groups_vec
+                                                    .iter()
+                                                    .position(|g| g == &group_name)
+                                                {
+                                                    if let Some(requests) =
+                                                        app.list.get(&group_name)
+                                                    {
+                                                        if let Some(request_idx) = requests
+                                                            .iter()
+                                                            .position(|r| r.name == parts[2])
+                                                        {
+                                                            app.selected_group_index =
+                                                                Some(group_idx);
+                                                            app.selected_request_index =
+                                                                Some(request_idx);
+                                                            app.sync_textarea_content();
+                                                            app.switch_to_details();
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        app.tree_toggle();
+                                    }
+                                }
+                                KeyCode::Left => {
+                                    app.tree_toggle();
+                                }
+                                KeyCode::Enter => {
+                                    if let Some((group_name, request_idx)) =
+                                        app.handle_tree_selection()
+                                    {
+                                        app.selected_group_index = Some(
+                                            app.groups_vec
+                                                .iter()
+                                                .position(|g| g == &group_name)
+                                                .unwrap_or(0),
+                                        );
+                                        app.selected_request_index = Some(request_idx);
+                                        app.switch_to_details();
+                                        app.sync_textarea_content();
+                                    }
+                                }
+                                KeyCode::Char('q') => {
+                                    app.current_screen = CurrentScreen::Exiting;
+                                }
+                                KeyCode::Char('e') => {
+                                    app.current_screen = CurrentScreen::Editing;
+                                    app.groups = Some(Groups::Name);
+                                }
+                                KeyCode::Char('d') => {
+                                    if !app.list.is_empty() {
+                                        app.update_groups_vec();
+                                        app.current_screen = CurrentScreen::Deleting;
+                                    }
+                                }
+                                KeyCode::Char('a') => {
+                                    if !app.list.is_empty() {
+                                        if let Some(selected_id) = app.tree_state.selected() {
+                                            if selected_id.starts_with("group-") {
+                                                let group_name = selected_id
+                                                    .strip_prefix("group-")
+                                                    .unwrap()
+                                                    .to_string();
+                                                app.add_request(group_name);
+                                            } else if selected_id.starts_with("request-") {
+                                                let parts: Vec<&str> =
+                                                    selected_id.splitn(3, '-').collect();
+                                                if parts.len() == 3 {
+                                                    app.add_request(parts[1].to_string());
+                                                }
+                                            }
                                         }
                                     }
                                 }
+                                _ => {}
+                            },
+                            ActivePanel::Details => {
+                                match key.code {
+                                    KeyCode::Left => {
+                                        if app.current_detail_field == DetailField::None
+                                            || app.current_detail_field == DetailField::Url
+                                            || app.current_detail_field == DetailField::AuthType
+                                            || app.current_detail_field == DetailField::AuthUsername
+                                            || app.current_detail_field == DetailField::AuthPassword
+                                            || app.current_detail_field == DetailField::Headers
+                                            || app.current_detail_field == DetailField::Body
+                                        {
+                                            app.switch_to_tree();
+                                        } else if app.current_detail_field == DetailField::AuthType
+                                        {
+                                            app.previous_auth_type();
+                                        } else {
+                                            let _ = match app.current_detail_field {
+                                                DetailField::Url => {
+                                                    app.url_textarea.input(Event::Key(key))
+                                                }
+                                                DetailField::Body => {
+                                                    app.body_textarea.input(Event::Key(key))
+                                                }
+                                                DetailField::AuthUsername => app
+                                                    .auth_username_textarea
+                                                    .input(Event::Key(key)),
+                                                DetailField::AuthPassword => app
+                                                    .auth_password_textarea
+                                                    .input(Event::Key(key)),
+                                                _ => false,
+                                            };
+                                        }
+                                    }
+                                    KeyCode::Right => {
+                                        if app.current_detail_field == DetailField::AuthType {
+                                            app.next_auth_type();
+                                        } else {
+                                            let _ = match app.current_detail_field {
+                                                DetailField::Url => {
+                                                    app.url_textarea.input(Event::Key(key))
+                                                }
+                                                DetailField::Body => {
+                                                    app.body_textarea.input(Event::Key(key))
+                                                }
+                                                DetailField::AuthUsername => app
+                                                    .auth_username_textarea
+                                                    .input(Event::Key(key)),
+                                                DetailField::AuthPassword => app
+                                                    .auth_password_textarea
+                                                    .input(Event::Key(key)),
+                                                _ => false,
+                                            };
+                                        }
+                                    }
+                                    KeyCode::Tab => {
+                                        if key.modifiers.contains(event::KeyModifiers::SHIFT) {
+                                            app.current_detail_field = match app
+                                                .current_detail_field
+                                            {
+                                                DetailField::None => DetailField::AuthPassword,
+                                                DetailField::Url => DetailField::None,
+                                                DetailField::Body => DetailField::Url,
+                                                DetailField::Headers => DetailField::Body,
+                                                DetailField::AuthType => DetailField::Headers,
+                                                DetailField::AuthUsername => DetailField::AuthType,
+                                                DetailField::AuthPassword => {
+                                                    DetailField::AuthUsername
+                                                }
+                                            };
+                                        } else {
+                                            app.current_detail_field = match app
+                                                .current_detail_field
+                                            {
+                                                DetailField::None => DetailField::Url,
+                                                DetailField::Url => DetailField::Body,
+                                                DetailField::Body => DetailField::Headers,
+                                                DetailField::Headers => DetailField::AuthType,
+                                                DetailField::AuthType => DetailField::AuthUsername,
+                                                DetailField::AuthUsername => {
+                                                    DetailField::AuthPassword
+                                                }
+                                                DetailField::AuthPassword => DetailField::None,
+                                            };
+                                        }
+                                    }
+                                    KeyCode::BackTab => {
+                                        if key.modifiers.contains(event::KeyModifiers::SHIFT) {
+                                            app.current_detail_field = match app
+                                                .current_detail_field
+                                            {
+                                                DetailField::None => DetailField::AuthPassword,
+                                                DetailField::Url => DetailField::None,
+                                                DetailField::Body => DetailField::Url,
+                                                DetailField::Headers => DetailField::Body,
+                                                DetailField::AuthType => DetailField::Headers,
+                                                DetailField::AuthUsername => DetailField::AuthType,
+                                                DetailField::AuthPassword => {
+                                                    DetailField::AuthUsername
+                                                }
+                                            };
+                                        } else {
+                                            app.current_detail_field = match app
+                                                .current_detail_field
+                                            {
+                                                DetailField::None => DetailField::Url,
+                                                DetailField::Url => DetailField::Body,
+                                                DetailField::Body => DetailField::Headers,
+                                                DetailField::Headers => DetailField::AuthType,
+                                                DetailField::AuthType => DetailField::AuthUsername,
+                                                DetailField::AuthUsername => {
+                                                    DetailField::AuthPassword
+                                                }
+                                                DetailField::AuthPassword => DetailField::None,
+                                            };
+                                        }
+                                    }
+                                    // have up and down arrow keys to navigate through the textarea
+                                    KeyCode::Up => {
+                                        app.current_detail_field = match app.current_detail_field {
+                                            DetailField::None => DetailField::AuthPassword,
+                                            DetailField::Url => DetailField::None,
+                                            DetailField::Body => DetailField::Url,
+                                            DetailField::Headers => DetailField::Body,
+                                            DetailField::AuthType => DetailField::Headers,
+                                            DetailField::AuthUsername => DetailField::AuthType,
+                                            DetailField::AuthPassword => DetailField::AuthUsername,
+                                        };
+                                    }
+
+                                    KeyCode::Down => {
+                                        app.current_detail_field = match app.current_detail_field {
+                                            DetailField::None => DetailField::Url,
+                                            DetailField::Url => DetailField::Body,
+                                            DetailField::Body => DetailField::Headers,
+                                            DetailField::Headers => DetailField::AuthType,
+                                            DetailField::AuthType => DetailField::AuthUsername,
+                                            DetailField::AuthUsername => DetailField::AuthPassword,
+                                            DetailField::AuthPassword => DetailField::None,
+                                        };
+                                    }
+                                    KeyCode::Esc => {
+                                        app.switch_to_tree();
+                                    }
+                                    _ => {
+                                        let _ = match app.current_detail_field {
+                                            DetailField::Url => {
+                                                app.url_textarea.input(Event::Key(key))
+                                            }
+                                            DetailField::Body => {
+                                                app.body_textarea.input(Event::Key(key))
+                                            }
+                                            DetailField::AuthUsername => {
+                                                app.auth_username_textarea.input(Event::Key(key))
+                                            }
+                                            DetailField::AuthPassword => {
+                                                app.auth_password_textarea.input(Event::Key(key))
+                                            }
+                                            _ => false,
+                                        };
+                                    }
+                                }
+                                // Save content after each edit
+                                app.save_textarea_content();
                             }
                         }
-                        KeyCode::Tab => {
-                            if key.modifiers.contains(event::KeyModifiers::SHIFT) {
-                                app.previous_request();
-                            } else {
-                                app.next_request();
-                            }
-                        }
-                        KeyCode::BackTab => {
-                            if key.modifiers.contains(event::KeyModifiers::SHIFT) {
-                                app.previous_request();
-                            } else {
-                                app.next_request();
-                            }
-                        }
-                        _ => {}
-                    },
+                    }
                     CurrentScreen::Editing => match key.code {
                         KeyCode::Esc => {
                             app.groups = None;
@@ -189,86 +389,11 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
                     },
                     CurrentScreen::RequestDetail => match key.code {
                         KeyCode::Esc => {
-                            app.save_textarea_content();
                             app.current_screen = CurrentScreen::Main;
                             app.selected_request_index = None;
                             app.current_detail_field = DetailField::None;
                         }
-                        KeyCode::Tab => {
-                            app.current_detail_field = match app.current_detail_field {
-                                DetailField::None => DetailField::Url,
-                                DetailField::Url => DetailField::Body,
-                                DetailField::Body => DetailField::Headers,
-                                DetailField::Headers => DetailField::AuthType,
-                                DetailField::AuthType => DetailField::AuthUsername,
-                                DetailField::AuthUsername => DetailField::AuthPassword,
-                                DetailField::AuthPassword => DetailField::None,
-                            };
-                        }
-                        KeyCode::BackTab => {
-                            app.current_detail_field = match app.current_detail_field {
-                                DetailField::None => DetailField::AuthPassword,
-                                DetailField::Url => DetailField::None,
-                                DetailField::Body => DetailField::Url,
-                                DetailField::Headers => DetailField::Body,
-                                DetailField::AuthType => DetailField::Headers,
-                                DetailField::AuthUsername => DetailField::AuthType,
-                                DetailField::AuthPassword => DetailField::AuthUsername,
-                            };
-                        }
-                        KeyCode::Left => {
-                            if app.current_detail_field == DetailField::AuthType {
-                                app.previous_auth_type();
-                            } else {
-                                match app.current_detail_field {
-                                    DetailField::Url => app.url_textarea.input(Event::Key(key)),
-                                    DetailField::Body => app.body_textarea.input(Event::Key(key)),
-                                    DetailField::AuthUsername => {
-                                        app.auth_username_textarea.input(Event::Key(key))
-                                    }
-                                    DetailField::AuthPassword => {
-                                        app.auth_password_textarea.input(Event::Key(key))
-                                    }
-                                    DetailField::Headers => false, // Headers are not currently editable
-                                    DetailField::AuthType => false, // Auth type is only changed via left/right arrows
-                                    DetailField::None => false, // No field selected, nothing to do
-                                };
-                            }
-                        }
-                        KeyCode::Right => {
-                            if app.current_detail_field == DetailField::AuthType {
-                                app.next_auth_type();
-                            } else {
-                                match app.current_detail_field {
-                                    DetailField::Url => app.url_textarea.input(Event::Key(key)),
-                                    DetailField::Body => app.body_textarea.input(Event::Key(key)),
-                                    DetailField::AuthUsername => {
-                                        app.auth_username_textarea.input(Event::Key(key))
-                                    }
-                                    DetailField::AuthPassword => {
-                                        app.auth_password_textarea.input(Event::Key(key))
-                                    }
-                                    DetailField::Headers => false, // Headers are not currently editable
-                                    DetailField::AuthType => false, // Auth type is only changed via left/right arrows
-                                    DetailField::None => false, // No field selected, nothing to do
-                                };
-                            }
-                        }
-                        _ => {
-                            match app.current_detail_field {
-                                DetailField::Url => app.url_textarea.input(Event::Key(key)),
-                                DetailField::Body => app.body_textarea.input(Event::Key(key)),
-                                DetailField::AuthUsername => {
-                                    app.auth_username_textarea.input(Event::Key(key))
-                                }
-                                DetailField::AuthPassword => {
-                                    app.auth_password_textarea.input(Event::Key(key))
-                                }
-                                DetailField::Headers => false, // Headers are not currently editable
-                                DetailField::AuthType => false, // Auth type is only changed via left/right arrows
-                                DetailField::None => false,     // No field selected, nothing to do
-                            };
-                        }
+                        _ => {}
                     },
                 }
             }

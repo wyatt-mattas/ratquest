@@ -8,9 +8,14 @@ use tui_textarea::TextArea;
 use tuirealm::ratatui::{
     layout::Rect,
     style::{Color, Style},
-    widgets::{Block, Borders},
     Frame,
 };
+
+#[derive(PartialEq)]
+pub enum ActivePanel {
+    Tree,
+    Details,
+}
 
 #[derive(Clone, Debug)]
 pub enum AuthType {
@@ -229,6 +234,7 @@ pub struct App {
     pub auth_username_textarea: TextArea<'static>,
     pub auth_password_textarea: TextArea<'static>,
     pub tree_state: TreeState,
+    pub active_panel: ActivePanel,
 }
 
 impl RequestType {
@@ -285,6 +291,7 @@ impl App {
             auth_username_textarea: TextArea::default(),
             auth_password_textarea: TextArea::default(),
             tree_state: TreeState::default(),
+            active_panel: ActivePanel::Tree,
         };
 
         app.tree_state
@@ -336,7 +343,7 @@ impl App {
         let tree = self.build_tree();
 
         let tree_widget = TreeWidget::new(&tree)
-            .block(Block::default().borders(Borders::ALL).title("API Groups"))
+            // .block(Block::default().borders(Borders::ALL).title("API Groups"))
             .highlight_style(Style::default().fg(Color::Yellow).bg(Color::DarkGray))
             .style(Style::default().fg(Color::White))
             .indent_size(2)
@@ -373,6 +380,18 @@ impl App {
         None
     }
 
+    pub fn switch_to_tree(&mut self) {
+        self.active_panel = ActivePanel::Tree;
+        self.current_detail_field = DetailField::None;
+    }
+
+    pub fn switch_to_details(&mut self) {
+        self.active_panel = ActivePanel::Details;
+        if self.current_detail_field == DetailField::None {
+            self.current_detail_field = DetailField::Url;
+        }
+    }
+
     // Add this to handle opening request details when Enter is pressed
     pub fn handle_tree_enter(&mut self) {
         if let Some((group_name, request_idx)) = self.handle_tree_selection() {
@@ -387,15 +406,63 @@ impl App {
         }
     }
 
-    // Add these methods to handle tree navigation
+    pub fn get_current_request(&self) -> Option<&ApiRequest> {
+        // First check if there's a selected request
+        if let Some(selected_request) = self.get_selected_request() {
+            return Some(selected_request);
+        }
+
+        // If no selected request, check the tree selection
+        if let Some(selected_id) = self.tree_state.selected() {
+            if selected_id.starts_with("request-") {
+                let parts: Vec<&str> = selected_id.splitn(3, '-').collect();
+                if parts.len() == 3 {
+                    let group_name = parts[1].to_string();
+                    if let Some(requests) = self.list.get(&group_name) {
+                        return requests.iter().find(|r| r.name == parts[2]);
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    fn update_selection_from_tree(&mut self) {
+        if let Some(selected_id) = self.tree_state.selected() {
+            if selected_id.starts_with("request-") {
+                let parts: Vec<&str> = selected_id.splitn(3, '-').collect();
+                if parts.len() == 3 {
+                    let group_name = parts[1].to_string();
+                    if let Some(group_idx) = self.groups_vec.iter().position(|g| g == &group_name) {
+                        if let Some(requests) = self.list.get(&group_name) {
+                            if let Some(request_idx) =
+                                requests.iter().position(|r| r.name == parts[2])
+                            {
+                                self.selected_group_index = Some(group_idx);
+                                self.selected_request_index = Some(request_idx);
+                                self.sync_textarea_content();
+                            }
+                        }
+                    }
+                }
+            } else {
+                // If we're on a group node, clear the request selection
+                self.selected_request_index = None;
+            }
+        }
+    }
+
+    // Then update the navigation methods to use it
     pub fn tree_next(&mut self) {
         let tree = self.build_tree();
         self.tree_state.move_down(tree.root());
+        self.update_selection_from_tree();
     }
 
     pub fn tree_previous(&mut self) {
         let tree = self.build_tree();
         self.tree_state.move_up(tree.root());
+        self.update_selection_from_tree();
     }
 
     pub fn tree_toggle(&mut self) {
