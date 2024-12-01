@@ -142,20 +142,24 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
                                 _ => {}
                             },
                             ActivePanel::Details => {
+                                // TODO check if AuthType is not None, then only allow switching to other auth types using the left and right arrow keys otherwise allow switching to Main panel
                                 match key.code {
                                     KeyCode::Left => {
+                                        if app.current_detail_field == DetailField::AuthType
+                                            && app.get_current_request_auth_type() != "None"
+                                        {
+                                            app.previous_auth_type();
+                                        } else {
+                                            app.switch_to_tree();
+                                        }
                                         if app.current_detail_field == DetailField::None
                                             || app.current_detail_field == DetailField::Url
-                                            || app.current_detail_field == DetailField::AuthType
                                             || app.current_detail_field == DetailField::AuthUsername
                                             || app.current_detail_field == DetailField::AuthPassword
                                             || app.current_detail_field == DetailField::Headers
                                             || app.current_detail_field == DetailField::Body
                                         {
                                             app.switch_to_tree();
-                                        } else if app.current_detail_field == DetailField::AuthType
-                                        {
-                                            app.previous_auth_type();
                                         } else {
                                             let _ = match app.current_detail_field {
                                                 DetailField::Url => {
@@ -195,91 +199,71 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
                                             };
                                         }
                                     }
-                                    KeyCode::Tab => {
-                                        if key.modifiers.contains(event::KeyModifiers::SHIFT) {
-                                            app.current_detail_field = match app
-                                                .current_detail_field
-                                            {
-                                                DetailField::None => DetailField::AuthPassword,
-                                                DetailField::Url => DetailField::None,
-                                                DetailField::Body => DetailField::Url,
-                                                DetailField::Headers => DetailField::Body,
-                                                DetailField::AuthType => DetailField::Headers,
-                                                DetailField::AuthUsername => DetailField::AuthType,
-                                                DetailField::AuthPassword => {
-                                                    DetailField::AuthUsername
-                                                }
-                                            };
-                                        } else {
-                                            app.current_detail_field = match app
-                                                .current_detail_field
-                                            {
-                                                DetailField::None => DetailField::Url,
-                                                DetailField::Url => DetailField::Body,
-                                                DetailField::Body => DetailField::Headers,
-                                                DetailField::Headers => DetailField::AuthType,
-                                                DetailField::AuthType => DetailField::AuthUsername,
-                                                DetailField::AuthUsername => {
-                                                    DetailField::AuthPassword
-                                                }
-                                                DetailField::AuthPassword => DetailField::None,
-                                            };
-                                        }
-                                    }
-                                    KeyCode::BackTab => {
-                                        if key.modifiers.contains(event::KeyModifiers::SHIFT) {
-                                            app.current_detail_field = match app
-                                                .current_detail_field
-                                            {
-                                                DetailField::None => DetailField::AuthPassword,
-                                                DetailField::Url => DetailField::None,
-                                                DetailField::Body => DetailField::Url,
-                                                DetailField::Headers => DetailField::Body,
-                                                DetailField::AuthType => DetailField::Headers,
-                                                DetailField::AuthUsername => DetailField::AuthType,
-                                                DetailField::AuthPassword => {
-                                                    DetailField::AuthUsername
-                                                }
-                                            };
-                                        } else {
-                                            app.current_detail_field = match app
-                                                .current_detail_field
-                                            {
-                                                DetailField::None => DetailField::Url,
-                                                DetailField::Url => DetailField::Body,
-                                                DetailField::Body => DetailField::Headers,
-                                                DetailField::Headers => DetailField::AuthType,
-                                                DetailField::AuthType => DetailField::AuthUsername,
-                                                DetailField::AuthUsername => {
-                                                    DetailField::AuthPassword
-                                                }
-                                                DetailField::AuthPassword => DetailField::None,
-                                            };
-                                        }
-                                    }
                                     // have up and down arrow keys to navigate through the textarea
-                                    KeyCode::Up => {
-                                        app.current_detail_field = match app.current_detail_field {
-                                            DetailField::None => DetailField::AuthPassword,
-                                            DetailField::Url => DetailField::None,
-                                            DetailField::Body => DetailField::Url,
-                                            DetailField::Headers => DetailField::Body,
-                                            DetailField::AuthType => DetailField::Headers,
-                                            DetailField::AuthUsername => DetailField::AuthType,
-                                            DetailField::AuthPassword => DetailField::AuthUsername,
+                                    KeyCode::Up | KeyCode::BackTab => {
+                                        app.current_detail_field = if app
+                                            .get_current_request_auth_type()
+                                            == "None"
+                                        {
+                                            match app.current_detail_field {
+                                                DetailField::Url => DetailField::AuthType,
+                                                DetailField::Body => DetailField::Url,
+                                                DetailField::Headers => DetailField::Body,
+                                                DetailField::AuthType => DetailField::Headers,
+                                                _ => DetailField::AuthType,
+                                            }
+                                        } else {
+                                            match app.current_detail_field {
+                                                DetailField::Url => DetailField::AuthPassword,
+                                                DetailField::Body => DetailField::Url,
+                                                DetailField::Headers => DetailField::Body,
+                                                DetailField::AuthType => DetailField::Headers,
+                                                DetailField::AuthUsername => DetailField::AuthType,
+                                                DetailField::AuthPassword => {
+                                                    DetailField::AuthUsername
+                                                }
+                                                _ => DetailField::AuthPassword,
+                                            }
                                         };
                                     }
-
-                                    KeyCode::Down => {
-                                        app.current_detail_field = match app.current_detail_field {
-                                            DetailField::None => DetailField::Url,
-                                            DetailField::Url => DetailField::Body,
-                                            DetailField::Body => DetailField::Headers,
-                                            DetailField::Headers => DetailField::AuthType,
-                                            DetailField::AuthType => DetailField::AuthUsername,
-                                            DetailField::AuthUsername => DetailField::AuthPassword,
-                                            DetailField::AuthPassword => DetailField::None,
+                                    KeyCode::Down | KeyCode::Tab => {
+                                        app.current_detail_field = if app
+                                            .get_current_request_auth_type()
+                                            == "None"
+                                        {
+                                            match app.current_detail_field {
+                                                DetailField::Url => DetailField::Body,
+                                                DetailField::Body => DetailField::Headers,
+                                                DetailField::Headers => DetailField::AuthType,
+                                                DetailField::AuthType => DetailField::Url,
+                                                _ => DetailField::Url,
+                                            }
+                                        } else {
+                                            match app.current_detail_field {
+                                                DetailField::Url => DetailField::Body,
+                                                DetailField::Body => DetailField::Headers,
+                                                DetailField::Headers => DetailField::AuthType,
+                                                DetailField::AuthType => DetailField::AuthUsername,
+                                                DetailField::AuthUsername => {
+                                                    DetailField::AuthPassword
+                                                }
+                                                DetailField::AuthPassword => DetailField::Url,
+                                                _ => DetailField::Url,
+                                            }
                                         };
+                                    }
+                                    KeyCode::Char('w') => {
+                                        if key.modifiers.contains(event::KeyModifiers::CONTROL)
+                                            && app.current_detail_field == DetailField::AuthPassword
+                                        {
+                                            app.password_visible = !app.password_visible;
+                                        } else if app.current_detail_field
+                                            == DetailField::AuthPassword
+                                        {
+                                            let _ =
+                                                app.auth_password_textarea.input(Event::Key(key));
+                                            app.save_textarea_content();
+                                        }
                                     }
                                     KeyCode::Esc => {
                                         app.switch_to_tree();

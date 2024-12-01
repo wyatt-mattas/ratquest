@@ -235,6 +235,7 @@ pub struct App {
     pub auth_password_textarea: TextArea<'static>,
     pub tree_state: TreeState,
     pub active_panel: ActivePanel,
+    pub password_visible: bool,
 }
 
 impl RequestType {
@@ -292,6 +293,7 @@ impl App {
             auth_password_textarea: TextArea::default(),
             tree_state: TreeState::default(),
             active_panel: ActivePanel::Tree,
+            password_visible: false,
         };
 
         app.tree_state
@@ -406,6 +408,21 @@ impl App {
         }
     }
 
+    pub fn get_current_request_auth_type(&self) -> String {
+        if let (Some(group_idx), Some(request_idx)) =
+            (self.selected_group_index, self.selected_request_index)
+        {
+            if let Some(group_name) = self.groups_vec.get(group_idx) {
+                if let Some(requests) = self.list.get(group_name) {
+                    if let Some(request) = requests.get(request_idx) {
+                        return request.details.auth_type.as_str().to_string();
+                    }
+                }
+            }
+        }
+        "None".to_string()
+    }
+
     pub fn get_current_request(&self) -> Option<&ApiRequest> {
         // First check if there's a selected request
         if let Some(selected_request) = self.get_selected_request() {
@@ -493,6 +510,7 @@ impl App {
         }
     }
 
+    // combine next_auth and previous_auth
     pub fn next_auth_type(&mut self) {
         if let Some(request) = self.get_selected_request_mut() {
             request.details.auth_type = request.details.auth_type.next();

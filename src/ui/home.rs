@@ -76,10 +76,10 @@ fn render_main_ui(frame: &mut Frame, app: &mut App) {
         let details_layout = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Length(3), // URL
-                Constraint::Length(6), // Body
-                Constraint::Length(8), // Headers
-                Constraint::Length(8), // Auth
+                Constraint::Length(3),  // URL
+                Constraint::Length(6),  // Body
+                Constraint::Length(8),  // Headers
+                Constraint::Length(10), // Auth
             ])
             .split(inner_area);
 
@@ -202,9 +202,23 @@ fn render_main_ui(frame: &mut Frame, app: &mut App) {
 
                 let password_area = password_block.inner(basic_auth_layout[1]);
                 frame.render_widget(password_block, basic_auth_layout[1]);
+
+                // Create masked password text
+                let password_text = if app.password_visible {
+                    app.auth_password_textarea.lines().join("\n")
+                } else {
+                    app.auth_password_textarea
+                        .lines()
+                        .iter()
+                        .map(|line| "•".repeat(line.len()))
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                };
+
                 frame.render_widget(
-                    Paragraph::new(app.auth_password_textarea.lines().join("\n"))
-                        .style(Style::default()),
+                    Paragraph::new(password_text)
+                        .style(Style::default())
+                        .wrap(Wrap { trim: true }),
                     password_area,
                 );
             }
