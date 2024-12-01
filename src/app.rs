@@ -592,39 +592,6 @@ impl App {
         }
     }
 
-    // Add methods to navigate requests within a group
-    pub fn next_request(&mut self) {
-        if let Some(group_index) = self.selected_group_index {
-            if let Some(group_name) = self.groups_vec.get(group_index) {
-                if let Some(requests) = self.list.get(group_name) {
-                    if !requests.is_empty() {
-                        self.temp_selected_request_index = match self.temp_selected_request_index {
-                            None => Some(0),
-                            Some(current) if current + 1 < requests.len() => Some(current + 1),
-                            _ => Some(0), // Wrap around to the beginning
-                        };
-                    }
-                }
-            }
-        }
-    }
-
-    pub fn previous_request(&mut self) {
-        if let Some(group_index) = self.selected_group_index {
-            if let Some(group_name) = self.groups_vec.get(group_index) {
-                if let Some(requests) = self.list.get(group_name) {
-                    if !requests.is_empty() {
-                        self.temp_selected_request_index = match self.temp_selected_request_index {
-                            None => Some(requests.len() - 1),
-                            Some(current) if current > 0 => Some(current - 1),
-                            _ => Some(requests.len() - 1), // Wrap around to the end
-                        };
-                    }
-                }
-            }
-        }
-    }
-
     pub fn save_group(&mut self) {
         if !self.key_input.is_empty() {
             self.list.insert(self.key_input.clone(), Vec::new());
@@ -638,10 +605,24 @@ impl App {
         if let Some(group_name) = &self.selected_group {
             if !self.request_name_input.is_empty() {
                 if let Some(requests) = self.list.get_mut(group_name) {
-                    requests.push(ApiRequest::new(
+                    // Create new request with empty details
+                    let mut new_request = ApiRequest::new(
                         self.request_name_input.clone(),
                         self.selected_request_type.clone(),
-                    ));
+                    );
+
+                    // Initialize empty text areas
+                    self.url_textarea = TextArea::default();
+                    self.body_textarea = TextArea::default();
+                    self.auth_username_textarea = TextArea::default();
+                    self.auth_password_textarea = TextArea::default();
+
+                    // Save the empty text areas to the request
+                    new_request.details.url = String::new();
+                    new_request.details.body = String::new();
+
+                    // Add the new request
+                    requests.push(new_request);
 
                     // After adding the request, update the tree state
                     let tree = self.build_tree();
@@ -741,14 +722,6 @@ impl App {
         }
     }
 
-    pub fn toggle_group_minimized(&mut self, group_name: &String) {
-        if self.minimized_groups.contains(group_name) {
-            self.minimized_groups.remove(group_name);
-        } else {
-            self.minimized_groups.insert(group_name.to_string());
-        }
-    }
-
     pub fn next_visible_group(&mut self) {
         if self.groups_vec.is_empty() {
             self.selected_group_index = None;
@@ -759,61 +732,5 @@ impl App {
             None => 0,
             Some(current) => (current + 1) % self.groups_vec.len(),
         });
-    }
-
-    pub fn previous_visible_group(&mut self) {
-        if self.groups_vec.is_empty() {
-            self.selected_group_index = None;
-            return;
-        }
-
-        self.selected_group_index = Some(match self.selected_group_index {
-            None => self.groups_vec.len() - 1,
-            Some(current) => {
-                if current == 0 {
-                    self.groups_vec.len() - 1
-                } else {
-                    current - 1
-                }
-            }
-        });
-    }
-
-    pub fn push_to_field(&mut self, c: char) {
-        match self.current_detail_field {
-            DetailField::Url => {
-                self.url_textarea.insert_char(c);
-            }
-            DetailField::Body => {
-                self.body_textarea.insert_char(c);
-            }
-            DetailField::Headers => {} // TODO: Implement header editing
-            DetailField::AuthUsername => {
-                self.auth_username_textarea.insert_char(c);
-            }
-            DetailField::AuthPassword => {
-                self.auth_password_textarea.insert_char(c);
-            }
-            DetailField::AuthType | DetailField::None => {}
-        }
-    }
-
-    pub fn pop_from_field(&mut self) {
-        match self.current_detail_field {
-            DetailField::Url => {
-                self.url_textarea.delete_char();
-            }
-            DetailField::Body => {
-                self.body_textarea.delete_char();
-            }
-            DetailField::Headers => {} // TODO: Implement header editing
-            DetailField::AuthUsername => {
-                self.auth_username_textarea.delete_char();
-            }
-            DetailField::AuthPassword => {
-                self.auth_password_textarea.delete_char();
-            }
-            DetailField::AuthType | DetailField::None => {}
-        }
     }
 }

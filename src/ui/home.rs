@@ -249,13 +249,13 @@ fn render_main_ui(frame: &mut Frame, app: &mut App) {
 
     let current_keys_hint = match app.current_screen {
         CurrentScreen::Main => {
-            "(q) quit / (e) new group / (d) delete group / (a) add request / (↑↓) select group / (→←) minimize/maximize / (Tab/Shift+Tab) select request / (Enter) edit request"
+            "(q) quit / (e) new group / (a) add request / (↑↓) select group / (→ ←) minimize/maximize group / (→) Details Pane on Request"
         }
         CurrentScreen::Editing => "(ESC) cancel / (Enter) save",
         CurrentScreen::Deleting => "(↑/↓) select group / (Enter) confirm / (ESC) cancel",
         CurrentScreen::DeleteConfirm => "Are you sure you want to delete this group? (y/n)",
         CurrentScreen::Exiting => "Are you sure you want to quit? (y/n)",
-        CurrentScreen::AddingRequest => "(ESC) cancel / (Enter) save / (←/→) change type",
+        CurrentScreen::AddingRequest => "(ESC) cancel / (Enter) save / (→) change type",
         CurrentScreen::RequestDetail => "(ESC) back / (Tab) next field / (Shift+Tab) previous field",
     };
 
@@ -303,6 +303,9 @@ fn render_main_ui(frame: &mut Frame, app: &mut App) {
 
         frame.render_widget(input, input_area);
     }
+
+    // TODO - add delete group popup
+    // TODO - add delete request popup
 
     // Exit popup
     if app.current_screen == CurrentScreen::Exiting {
