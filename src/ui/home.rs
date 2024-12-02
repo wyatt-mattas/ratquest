@@ -222,61 +222,38 @@ fn render_main_ui(frame: &mut Frame, app: &mut App) {
                 let password_area = password_block.inner(basic_auth_layout[1]);
                 frame.render_widget(password_block, basic_auth_layout[1]);
 
-                if app.current_detail_field == DetailField::AuthPassword {
-                    if app.password_visible {
-                        frame.render_widget(&app.auth_password_textarea, password_area);
-                    } else {
-                        // Show dots with cursor when selected but not visible
-                        let masked_text = app
-                            .auth_password_textarea
-                            .lines()
-                            .iter()
-                            .map(|line| "•".repeat(line.len()))
-                            .collect::<Vec<_>>()
-                            .join("\n");
-                        frame.render_widget(
-                            Paragraph::new(masked_text)
-                                .style(Style::default())
-                                .wrap(Wrap { trim: true }),
-                            password_area,
-                        );
-                    }
-                } else {
-                    // Not selected - always show as paragraph with dots unless visibility is enabled
-                    let password_text = if app.password_visible {
-                        app.auth_password_textarea.lines().join("\n")
-                    } else {
-                        app.auth_password_textarea
-                            .lines()
-                            .iter()
-                            .map(|line| "•".repeat(line.len()))
-                            .collect::<Vec<_>>()
-                            .join("\n")
-                    };
-
-                    frame.render_widget(
-                        Paragraph::new(password_text)
-                            .style(Style::default())
-                            .wrap(Wrap { trim: true }),
-                        password_area,
-                    );
-                }
-
-                // Create masked password text
-                // let password_text = if app.password_visible {
-                //     app.auth_password_textarea.lines().join("\n")
-                // } else {
-                //     app.auth_password_textarea
-                //         .lines()
-                //         .iter()
-                //         .map(|line| "•".repeat(line.len()))
-                //         .collect::<Vec<_>>()
-                //         .join("\n")
-                // };
-
                 // if app.current_detail_field == DetailField::AuthPassword {
-                //     frame.render_widget(&app.auth_password_textarea, password_area);
+                //     if app.password_visible {
+                //         frame.render_widget(&app.auth_password_textarea, password_area);
+                //     } else {
+                //         // Show dots with cursor when selected but not visible
+                //         let masked_text = app
+                //             .auth_password_textarea
+                //             .lines()
+                //             .iter()
+                //             .map(|line| "•".repeat(line.len()))
+                //             .collect::<Vec<_>>()
+                //             .join("\n");
+                //         frame.render_widget(
+                //             Paragraph::new(masked_text)
+                //                 .style(Style::default())
+                //                 .wrap(Wrap { trim: true }),
+                //             password_area,
+                //         );
+                //     }
                 // } else {
+                //     // Not selected - always show as paragraph with dots unless visibility is enabled
+                //     let password_text = if app.password_visible {
+                //         app.auth_password_textarea.lines().join("\n")
+                //     } else {
+                //         app.auth_password_textarea
+                //             .lines()
+                //             .iter()
+                //             .map(|line| "•".repeat(line.len()))
+                //             .collect::<Vec<_>>()
+                //             .join("\n")
+                //     };
+
                 //     frame.render_widget(
                 //         Paragraph::new(password_text)
                 //             .style(Style::default())
@@ -284,6 +261,29 @@ fn render_main_ui(frame: &mut Frame, app: &mut App) {
                 //         password_area,
                 //     );
                 // }
+
+                // Create masked password text
+                let password_text = if app.password_visible {
+                    app.auth_password_textarea.lines().join("\n")
+                } else {
+                    app.auth_password_textarea
+                        .lines()
+                        .iter()
+                        .map(|line| "•".repeat(line.len()))
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                };
+
+                if app.current_detail_field == DetailField::AuthPassword {
+                    frame.render_widget(&app.auth_password_textarea, password_area);
+                } else {
+                    frame.render_widget(
+                        Paragraph::new(password_text)
+                            .style(Style::default())
+                            .wrap(Wrap { trim: true }),
+                        password_area,
+                    );
+                }
             }
         }
     } else {

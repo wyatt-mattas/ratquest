@@ -150,32 +150,8 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
                                         {
                                             app.previous_auth_type();
                                         } else {
-                                            app.switch_to_tree();
-                                        }
-                                        if app.current_detail_field == DetailField::None
-                                            || app.current_detail_field == DetailField::Url
-                                            || app.current_detail_field == DetailField::AuthUsername
-                                            || app.current_detail_field == DetailField::AuthPassword
-                                            || app.current_detail_field == DetailField::Headers
-                                            || app.current_detail_field == DetailField::Body
-                                        {
-                                            app.switch_to_tree();
-                                        } else {
-                                            let _ = match app.current_detail_field {
-                                                DetailField::Url => {
-                                                    app.url_textarea.input(Event::Key(key))
-                                                }
-                                                DetailField::Body => {
-                                                    app.body_textarea.input(Event::Key(key))
-                                                }
-                                                DetailField::AuthUsername => app
-                                                    .auth_username_textarea
-                                                    .input(Event::Key(key)),
-                                                DetailField::AuthPassword => app
-                                                    .auth_password_textarea
-                                                    .input(Event::Key(key)),
-                                                _ => false,
-                                            };
+                                            // Let handle_left_in_textarea manage all cursor and panel switching logic
+                                            app.handle_left_in_textarea(key);
                                         }
                                     }
                                     KeyCode::Right => {
@@ -252,19 +228,19 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
                                             }
                                         };
                                     }
-                                    KeyCode::Char('w') => {
-                                        if key.modifiers.contains(event::KeyModifiers::CONTROL)
-                                            && app.current_detail_field == DetailField::AuthPassword
-                                        {
-                                            app.password_visible = !app.password_visible;
-                                        } else if app.current_detail_field
-                                            == DetailField::AuthPassword
-                                        {
-                                            let _ =
-                                                app.auth_password_textarea.input(Event::Key(key));
-                                            app.save_textarea_content();
-                                        }
-                                    }
+                                    // KeyCode::Char('w') => {
+                                    //     if key.modifiers.contains(event::KeyModifiers::CONTROL)
+                                    //         && app.current_detail_field == DetailField::AuthPassword
+                                    //     {
+                                    //         app.password_visible = !app.password_visible;
+                                    //     } else if app.current_detail_field
+                                    //         == DetailField::AuthPassword
+                                    //     {
+                                    //         let _ =
+                                    //             app.auth_password_textarea.input(Event::Key(key));
+                                    //         app.save_textarea_content();
+                                    //     }
+                                    // }
                                     KeyCode::Esc => {
                                         app.switch_to_tree();
                                     }

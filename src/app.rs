@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use base64::{prelude::BASE64_STANDARD, Engine};
+use crossterm::event::{self, Event};
 use ratatui::widgets::Block;
 // use std::collections::HashMap;
 // use tui_realm_treeview::{Node, NodeValue, Tree, TreeState, TreeWidget};
@@ -315,6 +316,44 @@ impl App {
         app.tree_state.select(&initial_tree, initial_tree.root());
 
         app
+    }
+
+    // First, let's improve our cursor position function to be more specific
+    pub fn get_active_textarea_cursor(&self) -> Option<(usize, usize)> {
+        match self.current_detail_field {
+            DetailField::Url => Some(self.url_textarea.cursor()),
+            DetailField::Body => Some(self.body_textarea.cursor()),
+            DetailField::AuthUsername => Some(self.auth_username_textarea.cursor()),
+            DetailField::AuthPassword => Some(self.auth_password_textarea.cursor()),
+            _ => None  // Headers and other fields don't have text areas
+        }
+    }
+
+    // Then let's add a helper to check if we're at the start of the text
+    pub fn is_cursor_at_start(&self) -> bool {
+        if let Some((x, y)) = self.get_active_textarea_cursor() {
+            x == 0 && y == 0
+        } else {
+            true  // If there's no text area, treat it as being at the start
+        }
+    }
+
+    // We can also add a method to handle the left arrow key specifically
+    pub fn handle_left_in_textarea(&mut self, key: event::KeyEvent) -> bool {
+        // If we're at the start of the text and press left, switch to tree view
+        if self.is_cursor_at_start() {
+            self.switch_to_tree();
+            true
+        } else {
+            // Otherwise, let the text area handle the key normally
+            match self.current_detail_field {
+                DetailField::Url => self.url_textarea.input(Event::Key(key)),
+                DetailField::Body => self.body_textarea.input(Event::Key(key)),
+                DetailField::AuthUsername => self.auth_username_textarea.input(Event::Key(key)),
+                DetailField::AuthPassword => self.auth_password_textarea.input(Event::Key(key)),
+                _ => false,
+            }
+        }
     }
 
     pub fn build_tree(&self) -> Tree<TreeNode> {
@@ -765,6 +804,7 @@ impl App {
             Some(current) => (current + 1) % self.groups_vec.len(),
         });
     }
+    
 }
 
 #[cfg(test)]
