@@ -10,3 +10,6 @@ orange-trees = "0.1.3"
 ratatui = "0.29.0"
 tui-textarea = "0.7.0"
 rat-tree-view = { path = "/home/stoneimpala/git_clone/rat-tree-view" }
+
+[dev-dependencies]
+pretty_assertions = "1.4.1"

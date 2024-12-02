@@ -766,3 +766,46 @@ impl App {
         });
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_request_type_transitions() {
+        let request_type = RequestType::GET;
+
+        assert!(matches!(request_type.next(), RequestType::POST));
+        assert!(matches!(RequestType::POST.next(), RequestType::PUT));
+        assert!(matches!(RequestType::PUT.next(), RequestType::DELETE));
+        assert!(matches!(RequestType::DELETE.next(), RequestType::PATCH));
+        assert!(matches!(RequestType::PATCH.next(), RequestType::GET));
+    }
+
+    #[test]
+    fn test_auth_type_transitions() {
+        let auth_type = AuthType::None;
+        assert!(matches!(auth_type.next(), AuthType::Basic));
+        assert!(matches!(AuthType::Basic.next(), AuthType::None));
+    }
+
+    #[test]
+    fn test_basic_auth_creation() {
+        let basic_auth = BasicAuth {
+            username: "test_user".to_string(),
+            password: "test_pass".to_string(),
+        };
+
+        assert_eq!(basic_auth.username, "test_user");
+        assert_eq!(basic_auth.password, "test_pass");
+    }
+
+    #[test]
+    fn test_request_details_new() {
+        let details = RequestDetails::new();
+        assert!(details.url.is_empty());
+        assert!(details.body.is_empty());
+        assert!(details.headers.is_empty());
+        assert!(matches!(details.auth_type, AuthType::None));
+    }
+}

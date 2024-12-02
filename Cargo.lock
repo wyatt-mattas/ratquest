@@ -375,6 +375,7 @@ dependencies = [
  "base64",
  "crossterm",
  "orange-trees",
+ "pretty_assertions",
  "rat-tree-view",
  "ratatui",
  "tui-textarea",
