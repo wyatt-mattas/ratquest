@@ -38,7 +38,7 @@ fn render_main_ui(frame: &mut Frame, app: &mut App) {
     // Main body layout
     let inner_layout = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints(vec![Constraint::Percentage(25), Constraint::Percentage(75)])
+        .constraints(vec![Constraint::Percentage(20), Constraint::Percentage(80)])
         .split(chunks[1]);
 
     let tree_block = Block::default()
