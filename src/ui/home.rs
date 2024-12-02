@@ -6,7 +6,7 @@ use ratatui::{
     Frame,
 };
 
-use crate::app::{ActivePanel, App, CurrentScreen, DetailField, Groups, RequestType};
+use crate::app::{ActivePanel, App, CurrentScreen, DetailEditingMode, DetailField, Groups, RequestType};
 
 pub fn ui(frame: &mut Frame, app: &mut App) {
     render_main_ui(frame, app);
@@ -75,7 +75,8 @@ fn render_main_ui(frame: &mut Frame, app: &mut App) {
             .constraints([
                 Constraint::Length(3),  // URL
                 Constraint::Length(6),  // Body
-                Constraint::Length(8),  // Headers
+                Constraint::Length(6),  // Parameters
+                Constraint::Length(6),  // Headers
                 Constraint::Length(10), // Auth
             ])
             .split(inner_area);
@@ -126,26 +127,76 @@ fn render_main_ui(frame: &mut Frame, app: &mut App) {
             );
         }
 
-        // Headers Section
+        // After rendering body section, add parameters section
+        let parameters_block = Block::default()
+            .borders(Borders::ALL)
+            .title("Parameters")
+            .border_style(if app.current_detail_field == DetailField::Parameters {
+                Style::default().fg(Color::Yellow)
+            } else {
+                Style::default()
+            });
+
+        let parameters_text = request
+            .details
+            .parameters
+            .iter()
+            .map(|(k, v)| format!("{}: {}", k, v))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        let parameters = Paragraph::new(parameters_text)
+            .block(parameters_block)
+            .wrap(Wrap { trim: true });
+
+        frame.render_widget(parameters, details_layout[2]);
+
+        match &app.detail_editing_mode {
+            DetailEditingMode::Parameter { editing_key, key, value } => {
+                render_key_value_popup(
+                    frame,
+                    app,
+                    "Add Parameter",
+                    key,
+                    value,
+                    *editing_key,
+                );
+            },
+            DetailEditingMode::Header { editing_key, key, value } => {
+                render_key_value_popup(
+                    frame,
+                    app,
+                    "Add Header",
+                    key,
+                    value,
+                    *editing_key,
+                );
+            },
+            DetailEditingMode::None => {},
+        }
+
+        let header_block = Block::default()
+            .borders(Borders::ALL)
+            .title("Headers")
+            .border_style(if app.current_detail_field == DetailField::Headers {
+                Style::default().fg(Color::Yellow)
+            } else {
+                Style::default()
+            });
+
         let headers_text = request
             .details
             .headers
             .iter()
-            .map(|(k, v)| format!("{}:{}", k, v))
+            .map(|(k, v)| format!("{}: {}", k, v))
             .collect::<Vec<_>>()
             .join("\n");
-        let headers = Paragraph::new(headers_text).block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title("Headers")
-                .border_style(if app.current_detail_field == DetailField::Headers {
-                    Style::default().fg(Color::Yellow)
-                } else {
-                    Style::default()
-                }),
-        );
 
-        frame.render_widget(headers, details_layout[2]);
+        let parameters = Paragraph::new(headers_text)
+            .block(header_block)
+            .wrap(Wrap { trim: true });
+
+        frame.render_widget(parameters, details_layout[3]);
 
         // Auth Section
         let auth_layout = Layout::default()
@@ -154,7 +205,7 @@ fn render_main_ui(frame: &mut Frame, app: &mut App) {
                 Constraint::Length(3), // Auth Type
                 Constraint::Min(1),    // Auth Details
             ])
-            .split(details_layout[3]);
+            .split(details_layout[4]);
 
         // Auth Type
         let auth_type_text = format!("Auth Type: {}", request.details.auth_type.as_str());
@@ -473,4 +524,87 @@ fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
             Constraint::Percentage((100 - percent_x) / 2),
         ])
         .split(popup_layout[1])[1]
+}
+
+fn render_key_value_popup(
+    frame: &mut Frame,
+    app: &App,
+    title: &str,
+    key: &str,
+    value: &str,
+    editing_key: bool,
+) {
+    // First, create the outer block with a solid background
+    let popup_block = Block::default()
+            .title("Enter group name")
+            .borders(Borders::NONE)
+            .style(Style::default().bg(Color::DarkGray));
+
+        let area = centered_rect(60, 25, frame.area());
+        frame.render_widget(Clear, area);
+        frame.render_widget(popup_block, area);
+
+        let input_block = Block::default()
+            .borders(Borders::ALL)
+            .style(Style::default().bg(Color::DarkGray));
+
+        let input = Paragraph::new(app.key_input.as_str())
+            .block(input_block)
+            .style(Style::default().fg(Color::White));
+
+        let input_area = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(1),
+                Constraint::Length(3),
+                Constraint::Min(0),
+            ])
+            .split(area)[1];
+
+        frame.render_widget(input, input_area);
+    
+    // Render the popup block
+    // frame.render_widget(popup_block.clone(), area);
+    
+    // // Create the inner layout within the popup's inner area
+    // let popup_layout = Layout::default()
+    //     .direction(Direction::Horizontal)
+    //     .margin(1)
+    //     .constraints([
+    //         Constraint::Percentage(50),
+    //         Constraint::Percentage(50),
+    //     ])
+    //     .split(popup_block.inner(area));  // Use inner area of the block
+
+    // let active_style = Style::default()
+    //     .bg(Color::LightYellow)
+    //     .fg(Color::Black);
+
+    // let inactive_style = Style::default()
+    //     .bg(Color::DarkGray)   // Match the popup background
+    //     .fg(Color::White);     // Make text visible against dark background
+
+    // // Render key input with consistent background
+    // let key_block = Block::default()
+    //     .title("Key")
+    //     .borders(Borders::ALL)
+    //     .style(if editing_key { active_style } else { inactive_style });
+
+    // let key_text = Paragraph::new(key.to_string())
+    //     .block(key_block)
+    //     .style(if editing_key { active_style } else { inactive_style });
+    
+    // frame.render_widget(key_text, popup_layout[0]);
+
+    // // Render value input with consistent background
+    // let value_block = Block::default()
+    //     .title("Value")
+    //     .borders(Borders::ALL)
+    //     .style(if !editing_key { active_style } else { inactive_style });
+
+    // let value_text = Paragraph::new(value.to_string())
+    //     .block(value_block)
+    //     .style(if !editing_key { active_style } else { inactive_style });
+    
+    // frame.render_widget(value_text, popup_layout[1]);
 }

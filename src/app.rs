@@ -15,6 +15,8 @@ use ratatui::{
 
 use rat_tree_view::{Node, NodeValue, Tree, TreeState, TreeWidget};
 
+
+
 #[derive(PartialEq)]
 pub enum ActivePanel {
     Tree,
@@ -70,6 +72,7 @@ pub enum AuthDetails {
 pub struct RequestDetails {
     pub url: String,
     pub body: String,
+    pub parameters: HashMap<String, String>,
     pub headers: HashMap<String, String>,
     pub auth_type: AuthType,
     pub auth_details: AuthDetails,
@@ -80,6 +83,7 @@ impl RequestDetails {
         Self {
             url: String::new(),
             body: String::new(),
+            parameters: HashMap::new(),
             headers: HashMap::new(),
             auth_type: AuthType::None,
             auth_details: AuthDetails::None,
@@ -138,7 +142,12 @@ pub enum RequestType {
 pub enum DetailField {
     Url,
     Body,
+    Parameters,
+    ParameterKey,   // New states for parameter editing
+    ParameterValue,
     Headers,
+    HeaderKey,      // New states for header editing 
+    HeaderValue,
     AuthType,
     AuthUsername,
     AuthPassword,
@@ -153,6 +162,7 @@ impl ApiRequest {
             details: RequestDetails {
                 url: String::new(),
                 body: String::new(),
+                parameters: HashMap::new(),
                 headers: HashMap::new(),
                 auth_type: AuthType::None,
                 auth_details: AuthDetails::None,
@@ -170,6 +180,7 @@ impl Default for ApiRequest {
             details: RequestDetails {
                 url: String::new(),
                 body: String::new(),
+                parameters: HashMap::new(),
                 headers: HashMap::new(),
                 auth_type: AuthType::None,
                 auth_details: AuthDetails::None,
@@ -218,6 +229,21 @@ impl NodeValue for TreeNode {
     }
 }
 
+#[derive(PartialEq, Clone)]
+pub enum DetailEditingMode {
+    None,
+    Parameter {
+        editing_key: bool,   // true = editing key, false = editing value
+        key: String,
+        value: String,
+    },
+    Header {
+        editing_key: bool,
+        key: String,
+        value: String,
+    }
+}
+
 pub struct App {
     pub key_input: String,
     pub request_name_input: String,
@@ -240,6 +266,7 @@ pub struct App {
     pub tree_state: TreeState,
     pub active_panel: ActivePanel,
     pub password_visible: bool,
+    pub detail_editing_mode: DetailEditingMode,
 }
 
 impl RequestType {
@@ -310,12 +337,70 @@ impl App {
             tree_state: TreeState::default(),
             active_panel: ActivePanel::Tree,
             password_visible: false,
+            detail_editing_mode: DetailEditingMode::None,
         };
 
         let initial_tree = app.build_tree();
         app.tree_state.select(&initial_tree, initial_tree.root());
 
         app
+    }
+
+    pub fn start_key_value_editing(&mut self, mode: DetailEditingMode) {
+        self.detail_editing_mode = mode;
+    }
+
+    // Method to toggle between key and value editing
+    pub fn toggle_key_value_editing(&mut self) {
+        self.detail_editing_mode = match &self.detail_editing_mode {
+            DetailEditingMode::Parameter { editing_key, key, value } => {
+                DetailEditingMode::Parameter {
+                    editing_key: !editing_key,
+                    key: key.clone(),
+                    value: value.clone(),
+                }
+            },
+            DetailEditingMode::Header { editing_key, key, value } => {
+                DetailEditingMode::Header {
+                    editing_key: !editing_key,
+                    key: key.clone(),
+                    value: value.clone(),
+                }
+            },
+            DetailEditingMode::None => DetailEditingMode::None,
+        };
+    }
+
+    // Method to save the current key-value pair being edited
+    pub fn save_current_key_value(&mut self) {
+        // First, extract the information we need from detail_editing_mode
+        let (is_parameter, key, value) = match &self.detail_editing_mode {
+            DetailEditingMode::Parameter { key, value, .. } => {
+                (true, key.clone(), value.clone())
+            },
+            DetailEditingMode::Header { key, value, .. } => {
+                (false, key.clone(), value.clone())
+            },
+            DetailEditingMode::None => {
+                // Early return if we're not editing anything
+                return;
+            }
+        };
+    
+        // Now we can safely get the mutable request reference
+        if let Some(request) = self.get_selected_request_mut() {
+            // Only insert if we have a non-empty key
+            if !key.is_empty() {
+                if is_parameter {
+                    request.details.parameters.insert(key, value);
+                } else {
+                    request.details.headers.insert(key, value);
+                }
+            }
+        }
+    
+        // Finally, reset the editing mode
+        self.detail_editing_mode = DetailEditingMode::None;
     }
 
     /// Checks if the cursor is at the start position (0,0) for the currently active textarea.
