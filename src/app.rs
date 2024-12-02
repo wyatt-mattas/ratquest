@@ -318,23 +318,20 @@ impl App {
         app
     }
 
-    // First, let's improve our cursor position function to be more specific
-    pub fn get_active_textarea_cursor(&self) -> Option<(usize, usize)> {
-        match self.current_detail_field {
-            DetailField::Url => Some(self.url_textarea.cursor()),
-            DetailField::Body => Some(self.body_textarea.cursor()),
-            DetailField::AuthUsername => Some(self.auth_username_textarea.cursor()),
-            DetailField::AuthPassword => Some(self.auth_password_textarea.cursor()),
-            _ => None  // Headers and other fields don't have text areas
-        }
-    }
-
-    // Then let's add a helper to check if we're at the start of the text
+    /// Checks if the cursor is at the start position (0,0) for the currently active textarea.
+    /// Returns true in three cases:
+    /// 1. There is no text area for the current field (e.g., Headers)
+    /// 2. The cursor is at position (0,0) in the active text area
+    /// 3. The current detail field is None
     pub fn is_cursor_at_start(&self) -> bool {
-        if let Some((x, y)) = self.get_active_textarea_cursor() {
-            x == 0 && y == 0
-        } else {
-            true  // If there's no text area, treat it as being at the start
+        // Use direct pattern matching to check both the field type and cursor position
+        // in a single match expression
+        match self.current_detail_field {
+            DetailField::Url => self.url_textarea.cursor() == (0, 0),
+            DetailField::Body => self.body_textarea.cursor() == (0, 0),
+            DetailField::AuthUsername => self.auth_username_textarea.cursor() == (0, 0),
+            DetailField::AuthPassword => self.auth_password_textarea.cursor() == (0, 0),
+            _ => true, // For Headers and other fields without text areas, consider them always "at start"
         }
     }
 
@@ -804,7 +801,6 @@ impl App {
             Some(current) => (current + 1) % self.groups_vec.len(),
         });
     }
-    
 }
 
 #[cfg(test)]
