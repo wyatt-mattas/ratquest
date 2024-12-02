@@ -1,12 +1,9 @@
-use tuirealm::{
-    props::Alignment,
-    ratatui::{
-        layout::{Constraint, Direction, Layout, Rect},
-        style::{Color, Style},
-        text::{Line, Span, Text},
-        widgets::{Block, Borders, Clear, Paragraph, Wrap},
-        Frame,
-    },
+use ratatui::{
+    layout::{Constraint, Direction, Layout, Rect},
+    style::{Color, Style},
+    text::{Line, Span, Text},
+    widgets::{Block, Borders, Clear, Paragraph, Wrap},
+    Frame,
 };
 
 use crate::app::{ActivePanel, App, CurrentScreen, DetailField, Groups, RequestType};
@@ -47,7 +44,7 @@ fn render_main_ui(frame: &mut Frame, app: &mut App) {
     let tree_block = Block::default()
         .borders(Borders::ALL)
         .title("API Groups")
-        .style(if app.active_panel == ActivePanel::Tree {
+        .border_style(if app.active_panel == ActivePanel::Tree {
             Style::default().fg(Color::Yellow)
         } else {
             Style::default()
@@ -61,8 +58,8 @@ fn render_main_ui(frame: &mut Frame, app: &mut App) {
     let details_block = Block::default()
         .borders(Borders::ALL)
         .title("Details")
-        .style(if app.active_panel == ActivePanel::Details {
-            Style::default()
+        .border_style(if app.active_panel == ActivePanel::Details {
+            Style::default().fg(Color::Yellow)
         } else {
             Style::default()
         });
@@ -84,55 +81,70 @@ fn render_main_ui(frame: &mut Frame, app: &mut App) {
             .split(inner_area);
 
         // URL Section
-        let url_block = Block::default().borders(Borders::ALL).title("URL").style(
-            if app.current_detail_field == DetailField::Url {
+        let url_block = Block::default()
+            .borders(Borders::ALL)
+            .title("URL")
+            .border_style(if app.current_detail_field == DetailField::Url {
                 Style::default().fg(Color::Yellow)
             } else {
                 Style::default()
-            },
-        );
+            });
 
         let url_area = url_block.inner(details_layout[0]);
         frame.render_widget(url_block, details_layout[0]);
-        frame.render_widget(
-            Paragraph::new(app.url_textarea.lines().join("\n")).style(Style::default()),
-            url_area,
-        );
+
+        // Only show cursor if this field is selected
+        if app.current_detail_field == DetailField::Url {
+            frame.render_widget(&app.url_textarea, url_area);
+        } else {
+            // When not selected, render as a regular paragraph without cursor
+            frame.render_widget(
+                Paragraph::new(app.url_textarea.lines().join("\n")).style(Style::default()),
+                url_area,
+            );
+        }
 
         // Body Section
-        let body_block = Block::default().borders(Borders::ALL).title("Body").style(
-            if app.current_detail_field == DetailField::Body {
+        let body_block = Block::default()
+            .borders(Borders::ALL)
+            .title("Body")
+            .border_style(if app.current_detail_field == DetailField::Body {
                 Style::default().fg(Color::Yellow)
             } else {
                 Style::default()
-            },
-        );
+            });
 
         let body_area = body_block.inner(details_layout[1]);
         frame.render_widget(body_block, details_layout[1]);
-        frame.render_widget(
-            Paragraph::new(app.body_textarea.lines().join("\n")).style(Style::default()),
-            body_area,
-        );
+
+        if app.current_detail_field == DetailField::Body {
+            frame.render_widget(&app.body_textarea, body_area);
+        } else {
+            frame.render_widget(
+                Paragraph::new(app.body_textarea.lines().join("\n")).style(Style::default()),
+                body_area,
+            );
+        }
 
         // Headers Section
         let headers_text = request
             .details
             .headers
             .iter()
-            .map(|(k, v)| format!("{}: {}", k, v))
+            .map(|(k, v)| format!("{}:{}", k, v))
             .collect::<Vec<_>>()
             .join("\n");
         let headers = Paragraph::new(headers_text).block(
             Block::default()
                 .borders(Borders::ALL)
                 .title("Headers")
-                .style(if app.current_detail_field == DetailField::Headers {
+                .border_style(if app.current_detail_field == DetailField::Headers {
                     Style::default().fg(Color::Yellow)
                 } else {
                     Style::default()
                 }),
         );
+
         frame.render_widget(headers, details_layout[2]);
 
         // Auth Section
@@ -146,14 +158,15 @@ fn render_main_ui(frame: &mut Frame, app: &mut App) {
 
         // Auth Type
         let auth_type_text = format!("Auth Type: {}", request.details.auth_type.as_str());
-        let auth_type =
-            Paragraph::new(auth_type_text).block(Block::default().borders(Borders::ALL).style(
+        let auth_type = Paragraph::new(auth_type_text).block(
+            Block::default().borders(Borders::ALL).border_style(
                 if app.current_detail_field == DetailField::AuthType {
                     Style::default().fg(Color::Yellow)
                 } else {
                     Style::default()
                 },
-            ));
+            ),
+        );
         frame.render_widget(auth_type, auth_layout[0]);
 
         // Auth Details
@@ -176,7 +189,7 @@ fn render_main_ui(frame: &mut Frame, app: &mut App) {
                 let username_block = Block::default()
                     .borders(Borders::ALL)
                     .title("Username")
-                    .style(if app.current_detail_field == DetailField::AuthUsername {
+                    .border_style(if app.current_detail_field == DetailField::AuthUsername {
                         Style::default().fg(Color::Yellow)
                     } else {
                         Style::default()
@@ -184,17 +197,23 @@ fn render_main_ui(frame: &mut Frame, app: &mut App) {
 
                 let username_area = username_block.inner(basic_auth_layout[0]);
                 frame.render_widget(username_block, basic_auth_layout[0]);
-                frame.render_widget(
-                    Paragraph::new(app.auth_username_textarea.lines().join("\n"))
-                        .style(Style::default()),
-                    username_area,
-                );
+
+                if app.current_detail_field == DetailField::AuthUsername {
+                    frame.render_widget(&app.auth_username_textarea, username_area);
+                } else {
+                    frame.render_widget(
+                        Paragraph::new(app.auth_username_textarea.lines().join("\n"))
+                            .style(Style::default())
+                            .wrap(Wrap { trim: true }),
+                        username_area,
+                    );
+                }
 
                 // Password
                 let password_block = Block::default()
                     .borders(Borders::ALL)
                     .title("Password")
-                    .style(if app.current_detail_field == DetailField::AuthPassword {
+                    .border_style(if app.current_detail_field == DetailField::AuthPassword {
                         Style::default().fg(Color::Yellow)
                     } else {
                         Style::default()
@@ -203,30 +222,74 @@ fn render_main_ui(frame: &mut Frame, app: &mut App) {
                 let password_area = password_block.inner(basic_auth_layout[1]);
                 frame.render_widget(password_block, basic_auth_layout[1]);
 
-                // Create masked password text
-                let password_text = if app.password_visible {
-                    app.auth_password_textarea.lines().join("\n")
+                if app.current_detail_field == DetailField::AuthPassword {
+                    if app.password_visible {
+                        frame.render_widget(&app.auth_password_textarea, password_area);
+                    } else {
+                        // Show dots with cursor when selected but not visible
+                        let masked_text = app
+                            .auth_password_textarea
+                            .lines()
+                            .iter()
+                            .map(|line| "•".repeat(line.len()))
+                            .collect::<Vec<_>>()
+                            .join("\n");
+                        frame.render_widget(
+                            Paragraph::new(masked_text)
+                                .style(Style::default())
+                                .wrap(Wrap { trim: true }),
+                            password_area,
+                        );
+                    }
                 } else {
-                    app.auth_password_textarea
-                        .lines()
-                        .iter()
-                        .map(|line| "•".repeat(line.len()))
-                        .collect::<Vec<_>>()
-                        .join("\n")
-                };
+                    // Not selected - always show as paragraph with dots unless visibility is enabled
+                    let password_text = if app.password_visible {
+                        app.auth_password_textarea.lines().join("\n")
+                    } else {
+                        app.auth_password_textarea
+                            .lines()
+                            .iter()
+                            .map(|line| "•".repeat(line.len()))
+                            .collect::<Vec<_>>()
+                            .join("\n")
+                    };
 
-                frame.render_widget(
-                    Paragraph::new(password_text)
-                        .style(Style::default())
-                        .wrap(Wrap { trim: true }),
-                    password_area,
-                );
+                    frame.render_widget(
+                        Paragraph::new(password_text)
+                            .style(Style::default())
+                            .wrap(Wrap { trim: true }),
+                        password_area,
+                    );
+                }
+
+                // Create masked password text
+                // let password_text = if app.password_visible {
+                //     app.auth_password_textarea.lines().join("\n")
+                // } else {
+                //     app.auth_password_textarea
+                //         .lines()
+                //         .iter()
+                //         .map(|line| "•".repeat(line.len()))
+                //         .collect::<Vec<_>>()
+                //         .join("\n")
+                // };
+
+                // if app.current_detail_field == DetailField::AuthPassword {
+                //     frame.render_widget(&app.auth_password_textarea, password_area);
+                // } else {
+                //     frame.render_widget(
+                //         Paragraph::new(password_text)
+                //             .style(Style::default())
+                //             .wrap(Wrap { trim: true }),
+                //         password_area,
+                //     );
+                // }
             }
         }
     } else {
         // If no request is selected, show default message centered in the block
         frame.render_widget(
-            Paragraph::new("Select a request to view details").alignment(Alignment::Center),
+            Paragraph::new("Select a request to view details"),
             inner_area,
         );
     }
