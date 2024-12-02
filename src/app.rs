@@ -1,15 +1,18 @@
 use std::collections::{HashMap, HashSet};
 
 use base64::{prelude::BASE64_STANDARD, Engine};
+use ratatui::widgets::Block;
 // use std::collections::HashMap;
-use tui_realm_treeview::{Node, NodeValue, Tree, TreeState, TreeWidget};
+// use tui_realm_treeview::{Node, NodeValue, Tree, TreeState, TreeWidget};
 use tui_textarea::TextArea;
 // use tuirealm::props::Alignment;
-use tuirealm::ratatui::{
+use ratatui::{
     layout::Rect,
     style::{Color, Style},
     Frame,
 };
+
+use rat_tree_view::{Node, NodeValue, Tree, TreeState, TreeWidget};
 
 #[derive(PartialEq)]
 pub enum ActivePanel {
@@ -272,6 +275,18 @@ impl RequestType {
 
 impl App {
     pub fn new() -> Self {
+        let mut url_textarea = TextArea::default();
+        url_textarea.set_cursor_line_style(Style::default());
+
+        let mut body_textarea = TextArea::default();
+        body_textarea.set_cursor_line_style(Style::default());
+
+        let mut auth_username_textarea = TextArea::default();
+        auth_username_textarea.set_cursor_line_style(Style::default());
+
+        let mut auth_password_textarea = TextArea::default();
+        auth_password_textarea.set_cursor_line_style(Style::default());
+
         let mut app = Self {
             key_input: String::new(),
             request_name_input: String::new(),
@@ -287,17 +302,18 @@ impl App {
             selected_request_index: None,
             current_detail_field: DetailField::None,
             temp_selected_request_index: None,
-            url_textarea: TextArea::default(),
-            body_textarea: TextArea::default(),
-            auth_username_textarea: TextArea::default(),
-            auth_password_textarea: TextArea::default(),
+            url_textarea,
+            body_textarea,
+            auth_username_textarea,
+            auth_password_textarea,
             tree_state: TreeState::default(),
             active_panel: ActivePanel::Tree,
             password_visible: false,
         };
 
-        app.tree_state
-            .select(app.build_tree().root(), app.build_tree().root());
+        let initial_tree = app.build_tree();
+        app.tree_state.select(&initial_tree, initial_tree.root());
+
         app
     }
 
@@ -343,15 +359,13 @@ impl App {
 
     pub fn render_tree_view(&mut self, frame: &mut Frame, area: Rect) {
         let tree = self.build_tree();
-
-        let tree_widget = TreeWidget::new(&tree)
-            // .block(Block::default().borders(Borders::ALL).title("API Groups"))
-            .highlight_style(Style::default().fg(Color::Yellow).bg(Color::DarkGray))
-            .style(Style::default().fg(Color::White))
-            .indent_size(2)
+        let widget = TreeWidget::new(&tree)
+            .block(Block::default())
+            .style(Style::default())
+            .highlight_style(Style::default().fg(Color::Yellow))
             .highlight_symbol("→ ".to_string());
 
-        frame.render_stateful_widget(tree_widget, area, &mut self.tree_state);
+        frame.render_stateful_widget(widget, area, &mut self.tree_state);
     }
 
     // Handle selecting a request from the tree
@@ -472,13 +486,13 @@ impl App {
     // Then update the navigation methods to use it
     pub fn tree_next(&mut self) {
         let tree = self.build_tree();
-        self.tree_state.move_down(tree.root());
+        self.tree_state.move_down(&tree);
         self.update_selection_from_tree();
     }
 
     pub fn tree_previous(&mut self) {
         let tree = self.build_tree();
-        self.tree_state.move_up(tree.root());
+        self.tree_state.move_up(&tree);
         self.update_selection_from_tree();
     }
 
@@ -487,9 +501,9 @@ impl App {
         if let Some(id) = self.tree_state.selected() {
             if let Some(node) = tree.root().query(&id.to_string()) {
                 if self.tree_state.is_open(node) {
-                    self.tree_state.close(tree.root());
+                    self.tree_state.close(&tree, node);
                 } else {
-                    self.tree_state.open(tree.root());
+                    self.tree_state.open(&tree, node);
                 }
             }
         }
@@ -505,8 +519,8 @@ impl App {
             .root()
             .query(&format!("group-{}", self.selected_group.as_ref().unwrap()))
         {
-            self.tree_state.select(tree.root(), group_node);
-            self.tree_state.open(tree.root());
+            self.tree_state.select(&tree, group_node);
+            self.tree_state.open(&tree, group_node);
         }
     }
 
@@ -648,15 +662,15 @@ impl App {
                     // First, find and open the parent group
                     if let Some(parent) = tree.root().query(&format!("group-{}", group_name)) {
                         // Select the parent group and open it
-                        self.tree_state.select(tree.root(), parent);
-                        self.tree_state.open(tree.root());
+                        self.tree_state.select(&tree, parent);
+                        self.tree_state.open(&tree, parent);
 
                         // Then try to find and select the newly added request
                         if let Some(request_node) = tree.root().query(&format!(
                             "request-{}-{}",
                             group_name, self.request_name_input
                         )) {
-                            self.tree_state.select(tree.root(), request_node);
+                            self.tree_state.select(&tree, request_node);
                         }
                     }
 

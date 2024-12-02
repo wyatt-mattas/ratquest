@@ -2,16 +2,16 @@ pub mod app;
 pub mod ui;
 
 use app::{ActivePanel, App, CurrentScreen, DetailField, Groups, RequestType};
-use std::io;
-use tuirealm::ratatui::crossterm::{
+use ratatui::crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind},
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
-use tuirealm::ratatui::{
+use ratatui::{
     backend::{Backend, CrosstermBackend},
     Terminal,
 };
+use std::io;
 
 use ui::ui;
 
