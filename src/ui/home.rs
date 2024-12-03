@@ -7,7 +7,8 @@ use ratatui::{
 };
 
 use crate::app::{
-    ActivePanel, App, CurrentScreen, DetailField, Groups, HeaderInputMode, ParameterInputMode, RequestType
+    ActivePanel, App, CurrentScreen, DetailField, Groups, HeaderInputMode, ParameterInputMode,
+    RequestType,
 };
 
 pub fn ui(frame: &mut Frame, app: &mut App) {
@@ -51,11 +52,13 @@ fn render_params_popup(frame: &mut Frame<'_>, app: &mut App) {
     let key_block = Block::default()
         .title("Parameter Key")
         .borders(Borders::ALL)
-        .border_style(if matches!(app.params_input_mode, ParameterInputMode::Key) {
-            Style::default().fg(Color::Yellow)
-        } else {
-            Style::default()
-        });
+        .border_style(
+            if matches!(app.params_input_mode, ParameterInputMode::Key) {
+                Style::default().fg(Color::Yellow)
+            } else {
+                Style::default()
+            },
+        );
 
     let key_input = Paragraph::new(app.params_key_input.as_str())
         .block(key_block)
@@ -66,11 +69,13 @@ fn render_params_popup(frame: &mut Frame<'_>, app: &mut App) {
     let value_block = Block::default()
         .title("Parameter Value")
         .borders(Borders::ALL)
-        .border_style(if matches!(app.params_input_mode, ParameterInputMode::Value) {
-            Style::default().fg(Color::Yellow)
-        } else {
-            Style::default()
-        });
+        .border_style(
+            if matches!(app.params_input_mode, ParameterInputMode::Value) {
+                Style::default().fg(Color::Yellow)
+            } else {
+                Style::default()
+            },
+        );
 
     let value_input = Paragraph::new(app.params_value_input.as_str())
         .block(value_block)
@@ -149,9 +154,11 @@ fn render_base_ui(frame: &mut Frame, app: &mut App) {
             .constraints([
                 Constraint::Length(3),  // URL
                 Constraint::Length(6),  // Body
-                Constraint::Length(8),  // Paramters 
+                Constraint::Length(8),  // Parameters
                 Constraint::Length(8),  // Headers
                 Constraint::Length(10), // Auth
+                Constraint::Length(3),  // Send Request Bar
+                Constraint::Min(0),     // Response Area
             ])
             .split(inner_area);
 
@@ -383,6 +390,51 @@ fn render_base_ui(frame: &mut Frame, app: &mut App) {
                     );
                 }
             }
+        }
+        let send_text = if app.is_sending {
+            "⏳ Sending Request..."
+        } else {
+            "🚀 Press F5 or Ctrl+S to Send Request"
+        };
+        
+        let send_block = Block::default()
+            .borders(Borders::ALL)
+            .style(Style::default().fg(if app.is_sending { Color::Yellow } else { Color::Green }));
+        
+        let send_paragraph = Paragraph::new(send_text).block(send_block);
+        frame.render_widget(send_paragraph, details_layout[5]);
+        
+        // Response Area
+        if let Some(response) = &app.last_response {
+            let status_color = match response.status {
+                200..=299 => Color::Green,
+                300..=399 => Color::Blue,
+                400..=499 => Color::Yellow,
+                _ => Color::Red,
+            };
+        
+            let response_text = format!(
+                "Status: {} {}\nTime: {}ms\n\nHeaders:\n{}\n\nBody:\n{}",
+                response.status,
+                response.status_text,
+                response.time_taken.as_millis(),
+                response.headers.iter()
+                    .map(|(k, v)| format!("{}: {}", k, v))
+                    .collect::<Vec<_>>()
+                    .join("\n"),
+                response.body
+            );
+        
+            let response_block = Block::default()
+                .borders(Borders::ALL)
+                .title("Response")
+                .title_style(Style::default().fg(status_color));
+        
+            let response_paragraph = Paragraph::new(response_text)
+                .block(response_block)
+                .wrap(Wrap { trim: true });
+        
+            frame.render_widget(response_paragraph, details_layout[6]);
         }
     } else {
         // If no request is selected, show default message centered in the block

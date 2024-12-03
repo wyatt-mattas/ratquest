@@ -366,8 +366,13 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
     }
 }
 
-fn handle_common_navigation(app: &mut App, key: event::KeyEvent) {
+fn handle_common_navigation(mut app: App, key: event::KeyEvent) {
     match key.code {
+        KeyCode::Char('s') => {
+            if key.modifiers.contains(event::KeyModifiers::CONTROL) {
+                app.runtime.block_on(app.send_request());
+            }
+        }
         KeyCode::Left => {
             if app.current_detail_field == DetailField::AuthType
                 && app.get_current_request_auth_type() != "None"

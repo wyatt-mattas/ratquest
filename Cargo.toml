@@ -11,6 +11,9 @@ ratatui = "0.29.0"
 tui-textarea = "0.7.0"
 rat-tree-view = { git = "https://github.com/wyatt-mattas/rat-tree-view.git" }
 mime = "0.3.17"
+reqwest = "0.12.9"
+openssl = { version = "0.10.68", features = ["vendored"] }
+tokio = "1.42.0"
 
 [dev-dependencies]
 pretty_assertions = "1.4.1"
