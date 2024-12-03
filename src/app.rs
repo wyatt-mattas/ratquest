@@ -16,6 +16,12 @@ use ratatui::{
 use rat_tree_view::{Node, NodeValue, Tree, TreeState, TreeWidget};
 
 #[derive(PartialEq)]
+pub enum ParameterInputMode {
+    Key,
+    Value,
+}
+
+#[derive(PartialEq)]
 pub enum HeaderInputMode {
     Key,
     Value,
@@ -76,6 +82,7 @@ pub enum AuthDetails {
 pub struct RequestDetails {
     pub url: String,
     pub body: String,
+    pub params: HashMap<String, String>,
     pub headers: HashMap<String, String>,
     pub auth_type: AuthType,
     pub auth_details: AuthDetails,
@@ -86,6 +93,7 @@ impl RequestDetails {
         Self {
             url: String::new(),
             body: String::new(),
+            params: HashMap::new(),
             headers: HashMap::new(),
             auth_type: AuthType::None,
             auth_details: AuthDetails::None,
@@ -144,6 +152,7 @@ pub enum RequestType {
 pub enum DetailField {
     Url,
     Body,
+    Params,
     Headers,
     AuthType,
     AuthUsername,
@@ -159,6 +168,7 @@ impl ApiRequest {
             details: RequestDetails {
                 url: String::new(),
                 body: String::new(),
+                params: HashMap::new(),
                 headers: HashMap::new(),
                 auth_type: AuthType::None,
                 auth_details: AuthDetails::None,
@@ -176,6 +186,7 @@ impl Default for ApiRequest {
             details: RequestDetails {
                 url: String::new(),
                 body: String::new(),
+                params: HashMap::new(),
                 headers: HashMap::new(),
                 auth_type: AuthType::None,
                 auth_details: AuthDetails::None,
@@ -250,6 +261,10 @@ pub struct App {
     pub header_value_input: String,
     pub adding_header: bool,
     pub header_input_mode: HeaderInputMode,
+    pub params_key_input: String,
+    pub params_value_input: String,
+    pub adding_params: bool,
+    pub params_input_mode: ParameterInputMode,
 }
 
 impl RequestType {
@@ -324,12 +339,46 @@ impl App {
             header_value_input: String::new(),
             adding_header: false,
             header_input_mode: HeaderInputMode::Key,
+            params_key_input: String::new(),
+            params_value_input: String::new(),
+            adding_params: false,
+            params_input_mode: ParameterInputMode::Key,
         };
 
         let initial_tree = app.build_tree();
         app.tree_state.select(&initial_tree, initial_tree.root());
 
         app
+    }
+
+    pub fn start_adding_params(&mut self) {
+        self.adding_params = true;
+        self.params_key_input.clear();
+        self.params_value_input.clear();
+        self.params_input_mode = ParameterInputMode::Key;
+    }
+
+    pub fn save_params(&mut self) {
+        // Clone values first to avoid borrow conflicts
+        let key = self.params_key_input.clone();
+        let value = self.params_value_input.clone();
+    
+        if !key.is_empty() && !value.is_empty() {
+            if let Some(request) = self.get_selected_request_mut() {
+                request.details.params.insert(key, value);
+            }
+        }
+        
+        self.adding_params = false;
+        self.params_key_input.clear();
+        self.params_value_input.clear();
+    }
+
+    pub fn toggle_params_input_mode(&mut self) {
+        self.params_input_mode = match self.params_input_mode {
+            ParameterInputMode::Key => ParameterInputMode::Value,
+            ParameterInputMode::Value => ParameterInputMode::Key,
+        };
     }
 
     pub fn start_adding_header(&mut self) {
