@@ -7,7 +7,7 @@ use ratatui::{
 };
 
 use crate::app::{
-    ActivePanel, App, CurrentScreen, DetailField, Groups, HeaderInputMode, RequestType,
+    ActivePanel, App, CurrentScreen, DetailField, Groups, HeaderInputMode, ParameterInputMode, RequestType
 };
 
 pub fn ui(frame: &mut Frame, app: &mut App) {
@@ -18,6 +18,72 @@ pub fn ui(frame: &mut Frame, app: &mut App) {
     if app.adding_header {
         render_header_popup(frame, app);
     }
+
+    if app.adding_params {
+        render_params_popup(frame, app);
+    }
+}
+
+fn render_params_popup(frame: &mut Frame<'_>, app: &mut App) {
+    // First render a Clear widget over the area where the popup will be
+    let area = centered_rect(60, 25, frame.area());
+    frame.render_widget(Clear, area);
+
+    // Create and render the popup block
+    let popup_block = Block::default()
+        .title("Add Parameter")
+        .borders(Borders::ALL)
+        .style(Style::default().bg(Color::DarkGray));
+
+    frame.render_widget(popup_block, area);
+
+    let inner_area = Layout::default()
+        .direction(Direction::Vertical)
+        .margin(1)
+        .constraints([
+            Constraint::Length(3), // Params key
+            Constraint::Length(3), // Params value
+            Constraint::Length(2), // Instructions
+        ])
+        .split(area);
+
+    // Header key input
+    let key_block = Block::default()
+        .title("Parameter Key")
+        .borders(Borders::ALL)
+        .border_style(if matches!(app.params_input_mode, ParameterInputMode::Key) {
+            Style::default().fg(Color::Yellow)
+        } else {
+            Style::default()
+        });
+
+    let key_input = Paragraph::new(app.params_key_input.as_str())
+        .block(key_block)
+        .style(Style::default().fg(Color::White));
+    frame.render_widget(key_input, inner_area[0]);
+
+    // Header value input
+    let value_block = Block::default()
+        .title("Parameter Value")
+        .borders(Borders::ALL)
+        .border_style(if matches!(app.params_input_mode, ParameterInputMode::Value) {
+            Style::default().fg(Color::Yellow)
+        } else {
+            Style::default()
+        });
+
+    let value_input = Paragraph::new(app.params_value_input.as_str())
+        .block(value_block)
+        .style(Style::default().fg(Color::White));
+    frame.render_widget(value_input, inner_area[1]);
+
+    // Instructions
+    let instructions = Paragraph::new(match app.params_input_mode {
+        ParameterInputMode::Key => "Enter params key (Enter/Tab to move to value)",
+        ParameterInputMode::Value => "Enter params value (Enter to save)",
+    })
+    .style(Style::default().fg(Color::Gray));
+    frame.render_widget(instructions, inner_area[2]);
 }
 
 fn render_base_ui(frame: &mut Frame, app: &mut App) {
@@ -83,6 +149,7 @@ fn render_base_ui(frame: &mut Frame, app: &mut App) {
             .constraints([
                 Constraint::Length(3),  // URL
                 Constraint::Length(6),  // Body
+                Constraint::Length(8),  // Paramters 
                 Constraint::Length(8),  // Headers
                 Constraint::Length(10), // Auth
             ])
@@ -135,6 +202,28 @@ fn render_base_ui(frame: &mut Frame, app: &mut App) {
         }
 
         // Regular headers display (your existing code)
+        let params_text = request
+            .details
+            .params
+            .iter()
+            .map(|(k, v)| format!("{}: {}", k, v))
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        let params = Paragraph::new(params_text).block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Parameters (Enter to add)")
+                .border_style(if app.current_detail_field == DetailField::Params {
+                    Style::default().fg(Color::Yellow)
+                } else {
+                    Style::default()
+                }),
+        );
+
+        frame.render_widget(params, details_layout[2]);
+
+        // Regular headers display (your existing code)
         let headers_text = request
             .details
             .headers
@@ -154,7 +243,7 @@ fn render_base_ui(frame: &mut Frame, app: &mut App) {
                 }),
         );
 
-        frame.render_widget(headers, details_layout[2]);
+        frame.render_widget(headers, details_layout[3]);
 
         // Auth Section
         let auth_layout = Layout::default()
@@ -163,7 +252,7 @@ fn render_base_ui(frame: &mut Frame, app: &mut App) {
                 Constraint::Length(3), // Auth Type
                 Constraint::Min(1),    // Auth Details
             ])
-            .split(details_layout[3]);
+            .split(details_layout[4]);
 
         // Auth Type
         let auth_type_text = format!("Auth Type: {}", request.details.auth_type.as_str());

@@ -1,7 +1,7 @@
 pub mod app;
 pub mod ui;
 
-use app::{ActivePanel, App, CurrentScreen, DetailField, Groups, HeaderInputMode, RequestType};
+use app::{ActivePanel, App, CurrentScreen, DetailField, Groups, HeaderInputMode, ParameterInputMode, RequestType};
 use ratatui::crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind},
     execute,
@@ -143,6 +143,65 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
                             },
                             ActivePanel::Details => {
                                 match app.current_detail_field {
+                                    DetailField::Params => {
+                                        if app.adding_params {
+                                            match key.code {
+                                                KeyCode::Esc => {
+                                                    app.adding_params = false;
+                                                    app.params_key_input.clear();
+                                                    app.params_value_input.clear();
+                                                }
+                                                KeyCode::Enter => {
+                                                    match app.params_input_mode {
+                                                        ParameterInputMode::Key => {
+                                                            if !app.params_key_input.is_empty() {
+                                                                app.toggle_params_input_mode();
+                                                            }
+                                                        }
+                                                        ParameterInputMode::Value => {
+                                                            if !app.params_value_input.is_empty() {
+                                                                app.save_params();
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                                KeyCode::Tab => {
+                                                    if !app.params_key_input.is_empty() {
+                                                        app.toggle_params_input_mode();
+                                                    }
+                                                }
+                                                KeyCode::Char(c) => {
+                                                    match app.params_input_mode {
+                                                        ParameterInputMode::Key => app.params_key_input.push(c),
+                                                        ParameterInputMode::Value => app.params_value_input.push(c),
+                                                    }
+                                                }
+                                                KeyCode::Backspace => {
+                                                    match app.params_input_mode {
+                                                        ParameterInputMode::Key => { app.params_key_input.pop(); }
+                                                        ParameterInputMode::Value => { app.params_value_input.pop(); }
+                                                    }
+                                                }
+                                                KeyCode::Left | KeyCode::Right | KeyCode::Up | KeyCode::Down => {
+                                                    // Ignore navigation keys while adding header
+                                                }
+                                                _ => {}
+                                            }
+                                        } else {
+                                            match key.code {
+                                                KeyCode::Enter => {
+                                                    app.start_adding_params();
+                                                }
+                                                // Handle navigation for headers section when not adding
+                                                KeyCode::Left | KeyCode::Right | KeyCode::Up | KeyCode::Down | KeyCode::Tab | 
+                                                KeyCode::BackTab | KeyCode::Esc => {
+                                                    // Fall through to main navigation handling
+                                                    handle_common_navigation(app, key);
+                                                }
+                                                _ => {}
+                                            }
+                                        }
+                                    }
                                     DetailField::Headers => {
                                         if app.adding_header {
                                             match key.code {
@@ -336,7 +395,8 @@ fn handle_common_navigation(app: &mut App, key: event::KeyEvent) {
                 match app.current_detail_field {
                     DetailField::Url => DetailField::AuthType,
                     DetailField::Body => DetailField::Url,
-                    DetailField::Headers => DetailField::Body,
+                    DetailField::Params => DetailField::Body,
+                    DetailField::Headers => DetailField::Params,
                     DetailField::AuthType => DetailField::Headers,
                     _ => DetailField::AuthType,
                 }
@@ -344,7 +404,8 @@ fn handle_common_navigation(app: &mut App, key: event::KeyEvent) {
                 match app.current_detail_field {
                     DetailField::Url => DetailField::AuthPassword,
                     DetailField::Body => DetailField::Url,
-                    DetailField::Headers => DetailField::Body,
+                    DetailField::Params => DetailField::Body,
+                    DetailField::Headers => DetailField::Params,
                     DetailField::AuthType => DetailField::Headers,
                     DetailField::AuthUsername => DetailField::AuthType,
                     DetailField::AuthPassword => DetailField::AuthUsername,
@@ -356,7 +417,8 @@ fn handle_common_navigation(app: &mut App, key: event::KeyEvent) {
             app.current_detail_field = if app.get_current_request_auth_type() == "None" {
                 match app.current_detail_field {
                     DetailField::Url => DetailField::Body,
-                    DetailField::Body => DetailField::Headers,
+                    DetailField::Body => DetailField::Params,
+                    DetailField::Params => DetailField::Headers,
                     DetailField::Headers => DetailField::AuthType,
                     DetailField::AuthType => DetailField::Url,
                     _ => DetailField::Url,
@@ -364,7 +426,8 @@ fn handle_common_navigation(app: &mut App, key: event::KeyEvent) {
             } else {
                 match app.current_detail_field {
                     DetailField::Url => DetailField::Body,
-                    DetailField::Body => DetailField::Headers,
+                    DetailField::Body => DetailField::Params,
+                    DetailField::Params => DetailField::Headers,
                     DetailField::Headers => DetailField::AuthType,
                     DetailField::AuthType => DetailField::AuthUsername,
                     DetailField::AuthUsername => DetailField::AuthPassword,
