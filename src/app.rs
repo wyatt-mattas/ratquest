@@ -16,6 +16,12 @@ use ratatui::{
 use rat_tree_view::{Node, NodeValue, Tree, TreeState, TreeWidget};
 
 #[derive(PartialEq)]
+pub enum HeaderInputMode {
+    Key,
+    Value,
+}
+
+#[derive(PartialEq)]
 pub enum ActivePanel {
     Tree,
     Details,
@@ -240,6 +246,10 @@ pub struct App {
     pub tree_state: TreeState,
     pub active_panel: ActivePanel,
     pub password_visible: bool,
+    pub header_key_input: String,
+    pub header_value_input: String,
+    pub adding_header: bool,
+    pub header_input_mode: HeaderInputMode,
 }
 
 impl RequestType {
@@ -310,12 +320,49 @@ impl App {
             tree_state: TreeState::default(),
             active_panel: ActivePanel::Tree,
             password_visible: false,
+            header_key_input: String::new(),
+            header_value_input: String::new(),
+            adding_header: false,
+            header_input_mode: HeaderInputMode::Key,
         };
 
         let initial_tree = app.build_tree();
         app.tree_state.select(&initial_tree, initial_tree.root());
 
         app
+    }
+
+    pub fn start_adding_header(&mut self) {
+        self.adding_header = true;
+        self.header_key_input.clear();
+        self.header_value_input.clear();
+        self.header_input_mode = HeaderInputMode::Key;
+    }
+
+    pub fn save_header(&mut self) {
+        // Clone values first to avoid borrow conflicts
+        let key = self.header_key_input.clone();
+        let value = self.header_value_input.clone();
+    
+        if !key.is_empty() && !value.is_empty() {
+            // Check authorization outside of the mutable borrow
+            if key.to_lowercase() != "authorization" {
+                if let Some(request) = self.get_selected_request_mut() {
+                    request.details.headers.insert(key, value);
+                }
+            }
+        }
+        
+        self.adding_header = false;
+        self.header_key_input.clear();
+        self.header_value_input.clear();
+    }
+
+    pub fn toggle_header_input_mode(&mut self) {
+        self.header_input_mode = match self.header_input_mode {
+            HeaderInputMode::Key => HeaderInputMode::Value,
+            HeaderInputMode::Value => HeaderInputMode::Key,
+        };
     }
 
     /// Checks if the cursor is at the start position (0,0) for the currently active textarea.

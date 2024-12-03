@@ -6,13 +6,21 @@ use ratatui::{
     Frame,
 };
 
-use crate::app::{ActivePanel, App, CurrentScreen, DetailField, Groups, RequestType};
+use crate::app::{
+    ActivePanel, App, CurrentScreen, DetailField, Groups, HeaderInputMode, RequestType,
+};
 
 pub fn ui(frame: &mut Frame, app: &mut App) {
-    render_main_ui(frame, app);
+    // First render all the regular UI elements
+    render_base_ui(frame, app);
+
+    // Then render any popups on top
+    if app.adding_header {
+        render_header_popup(frame, app);
+    }
 }
 
-fn render_main_ui(frame: &mut Frame, app: &mut App) {
+fn render_base_ui(frame: &mut Frame, app: &mut App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -126,18 +134,19 @@ fn render_main_ui(frame: &mut Frame, app: &mut App) {
             );
         }
 
-        // Headers Section
+        // Regular headers display (your existing code)
         let headers_text = request
             .details
             .headers
             .iter()
-            .map(|(k, v)| format!("{}:{}", k, v))
+            .map(|(k, v)| format!("{}: {}", k, v))
             .collect::<Vec<_>>()
             .join("\n");
+
         let headers = Paragraph::new(headers_text).block(
             Block::default()
                 .borders(Borders::ALL)
-                .title("Headers")
+                .title("Headers (Enter to add)")
                 .border_style(if app.current_detail_field == DetailField::Headers {
                     Style::default().fg(Color::Yellow)
                 } else {
@@ -473,4 +482,66 @@ fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
             Constraint::Percentage((100 - percent_x) / 2),
         ])
         .split(popup_layout[1])[1]
+}
+
+fn render_header_popup(frame: &mut Frame, app: &App) {
+    // First render a Clear widget over the area where the popup will be
+    let area = centered_rect(60, 25, frame.area());
+    frame.render_widget(Clear, area);
+
+    // Create and render the popup block
+    let popup_block = Block::default()
+        .title("Add Header")
+        .borders(Borders::ALL)
+        .style(Style::default().bg(Color::DarkGray));
+
+    frame.render_widget(popup_block, area);
+
+    let inner_area = Layout::default()
+        .direction(Direction::Vertical)
+        .margin(1)
+        .constraints([
+            Constraint::Length(3), // Header key
+            Constraint::Length(3), // Header value
+            Constraint::Length(2), // Instructions
+        ])
+        .split(area);
+
+    // Header key input
+    let key_block = Block::default()
+        .title("Header Key")
+        .borders(Borders::ALL)
+        .border_style(if matches!(app.header_input_mode, HeaderInputMode::Key) {
+            Style::default().fg(Color::Yellow)
+        } else {
+            Style::default()
+        });
+
+    let key_input = Paragraph::new(app.header_key_input.as_str())
+        .block(key_block)
+        .style(Style::default().fg(Color::White));
+    frame.render_widget(key_input, inner_area[0]);
+
+    // Header value input
+    let value_block = Block::default()
+        .title("Header Value")
+        .borders(Borders::ALL)
+        .border_style(if matches!(app.header_input_mode, HeaderInputMode::Value) {
+            Style::default().fg(Color::Yellow)
+        } else {
+            Style::default()
+        });
+
+    let value_input = Paragraph::new(app.header_value_input.as_str())
+        .block(value_block)
+        .style(Style::default().fg(Color::White));
+    frame.render_widget(value_input, inner_area[1]);
+
+    // Instructions
+    let instructions = Paragraph::new(match app.header_input_mode {
+        HeaderInputMode::Key => "Enter header key (Enter/Tab to move to value)",
+        HeaderInputMode::Value => "Enter header value (Enter to save)",
+    })
+    .style(Style::default().fg(Color::Gray));
+    frame.render_widget(instructions, inner_area[2]);
 }
