@@ -394,16 +394,20 @@ fn render_base_ui(frame: &mut Frame, app: &mut App) {
         let send_text = if app.is_sending {
             "⏳ Sending Request..."
         } else {
-            "🚀 Press F5 or Ctrl+S to Send Request"
+            "🚀 Press Ctrl+S to Send Request"
         };
-        
+
         let send_block = Block::default()
             .borders(Borders::ALL)
-            .style(Style::default().fg(if app.is_sending { Color::Yellow } else { Color::Green }));
-        
+            .style(Style::default().fg(if app.is_sending {
+                Color::Yellow
+            } else {
+                Color::Green
+            }));
+
         let send_paragraph = Paragraph::new(send_text).block(send_block);
         frame.render_widget(send_paragraph, details_layout[5]);
-        
+
         // Response Area
         if let Some(response) = &app.last_response {
             let status_color = match response.status {
@@ -412,28 +416,30 @@ fn render_base_ui(frame: &mut Frame, app: &mut App) {
                 400..=499 => Color::Yellow,
                 _ => Color::Red,
             };
-        
+
             let response_text = format!(
                 "Status: {} {}\nTime: {}ms\n\nHeaders:\n{}\n\nBody:\n{}",
                 response.status,
                 response.status_text,
                 response.time_taken.as_millis(),
-                response.headers.iter()
+                response
+                    .headers
+                    .iter()
                     .map(|(k, v)| format!("{}: {}", k, v))
                     .collect::<Vec<_>>()
                     .join("\n"),
                 response.body
             );
-        
+
             let response_block = Block::default()
                 .borders(Borders::ALL)
                 .title("Response")
                 .title_style(Style::default().fg(status_color));
-        
+
             let response_paragraph = Paragraph::new(response_text)
                 .block(response_block)
                 .wrap(Wrap { trim: true });
-        
+
             frame.render_widget(response_paragraph, details_layout[6]);
         }
     } else {

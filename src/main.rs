@@ -1,7 +1,10 @@
 pub mod app;
 pub mod ui;
 
-use app::{ActivePanel, App, CurrentScreen, DetailField, Groups, HeaderInputMode, ParameterInputMode, RequestType};
+use app::{
+    ActivePanel, App, CurrentScreen, DetailField, Groups, HeaderInputMode, ParameterInputMode,
+    RequestType,
+};
 use ratatui::crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind},
     execute,
@@ -151,38 +154,43 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
                                                     app.params_key_input.clear();
                                                     app.params_value_input.clear();
                                                 }
-                                                KeyCode::Enter => {
-                                                    match app.params_input_mode {
-                                                        ParameterInputMode::Key => {
-                                                            if !app.params_key_input.is_empty() {
-                                                                app.toggle_params_input_mode();
-                                                            }
-                                                        }
-                                                        ParameterInputMode::Value => {
-                                                            if !app.params_value_input.is_empty() {
-                                                                app.save_params();
-                                                            }
+                                                KeyCode::Enter => match app.params_input_mode {
+                                                    ParameterInputMode::Key => {
+                                                        if !app.params_key_input.is_empty() {
+                                                            app.toggle_params_input_mode();
                                                         }
                                                     }
-                                                }
+                                                    ParameterInputMode::Value => {
+                                                        if !app.params_value_input.is_empty() {
+                                                            app.save_params();
+                                                        }
+                                                    }
+                                                },
                                                 KeyCode::Tab => {
                                                     if !app.params_key_input.is_empty() {
                                                         app.toggle_params_input_mode();
                                                     }
                                                 }
-                                                KeyCode::Char(c) => {
-                                                    match app.params_input_mode {
-                                                        ParameterInputMode::Key => app.params_key_input.push(c),
-                                                        ParameterInputMode::Value => app.params_value_input.push(c),
+                                                KeyCode::Char(c) => match app.params_input_mode {
+                                                    ParameterInputMode::Key => {
+                                                        app.params_key_input.push(c)
                                                     }
-                                                }
-                                                KeyCode::Backspace => {
-                                                    match app.params_input_mode {
-                                                        ParameterInputMode::Key => { app.params_key_input.pop(); }
-                                                        ParameterInputMode::Value => { app.params_value_input.pop(); }
+                                                    ParameterInputMode::Value => {
+                                                        app.params_value_input.push(c)
                                                     }
-                                                }
-                                                KeyCode::Left | KeyCode::Right | KeyCode::Up | KeyCode::Down => {
+                                                },
+                                                KeyCode::Backspace => match app.params_input_mode {
+                                                    ParameterInputMode::Key => {
+                                                        app.params_key_input.pop();
+                                                    }
+                                                    ParameterInputMode::Value => {
+                                                        app.params_value_input.pop();
+                                                    }
+                                                },
+                                                KeyCode::Left
+                                                | KeyCode::Right
+                                                | KeyCode::Up
+                                                | KeyCode::Down => {
                                                     // Ignore navigation keys while adding header
                                                 }
                                                 _ => {}
@@ -193,8 +201,13 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
                                                     app.start_adding_params();
                                                 }
                                                 // Handle navigation for headers section when not adding
-                                                KeyCode::Left | KeyCode::Right | KeyCode::Up | KeyCode::Down | KeyCode::Tab | 
-                                                KeyCode::BackTab | KeyCode::Esc => {
+                                                KeyCode::Left
+                                                | KeyCode::Right
+                                                | KeyCode::Up
+                                                | KeyCode::Down
+                                                | KeyCode::Tab
+                                                | KeyCode::BackTab
+                                                | KeyCode::Esc => {
                                                     // Fall through to main navigation handling
                                                     handle_common_navigation(app, key);
                                                 }
@@ -210,38 +223,43 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
                                                     app.header_key_input.clear();
                                                     app.header_value_input.clear();
                                                 }
-                                                KeyCode::Enter => {
-                                                    match app.header_input_mode {
-                                                        HeaderInputMode::Key => {
-                                                            if !app.header_key_input.is_empty() {
-                                                                app.toggle_header_input_mode();
-                                                            }
-                                                        }
-                                                        HeaderInputMode::Value => {
-                                                            if !app.header_value_input.is_empty() {
-                                                                app.save_header();
-                                                            }
+                                                KeyCode::Enter => match app.header_input_mode {
+                                                    HeaderInputMode::Key => {
+                                                        if !app.header_key_input.is_empty() {
+                                                            app.toggle_header_input_mode();
                                                         }
                                                     }
-                                                }
+                                                    HeaderInputMode::Value => {
+                                                        if !app.header_value_input.is_empty() {
+                                                            app.save_header();
+                                                        }
+                                                    }
+                                                },
                                                 KeyCode::Tab => {
                                                     if !app.header_key_input.is_empty() {
                                                         app.toggle_header_input_mode();
                                                     }
                                                 }
-                                                KeyCode::Char(c) => {
-                                                    match app.header_input_mode {
-                                                        HeaderInputMode::Key => app.header_key_input.push(c),
-                                                        HeaderInputMode::Value => app.header_value_input.push(c),
+                                                KeyCode::Char(c) => match app.header_input_mode {
+                                                    HeaderInputMode::Key => {
+                                                        app.header_key_input.push(c)
                                                     }
-                                                }
-                                                KeyCode::Backspace => {
-                                                    match app.header_input_mode {
-                                                        HeaderInputMode::Key => { app.header_key_input.pop(); }
-                                                        HeaderInputMode::Value => { app.header_value_input.pop(); }
+                                                    HeaderInputMode::Value => {
+                                                        app.header_value_input.push(c)
                                                     }
-                                                }
-                                                KeyCode::Left | KeyCode::Right | KeyCode::Up | KeyCode::Down => {
+                                                },
+                                                KeyCode::Backspace => match app.header_input_mode {
+                                                    HeaderInputMode::Key => {
+                                                        app.header_key_input.pop();
+                                                    }
+                                                    HeaderInputMode::Value => {
+                                                        app.header_value_input.pop();
+                                                    }
+                                                },
+                                                KeyCode::Left
+                                                | KeyCode::Right
+                                                | KeyCode::Up
+                                                | KeyCode::Down => {
                                                     // Ignore navigation keys while adding header
                                                 }
                                                 _ => {}
@@ -252,8 +270,13 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
                                                     app.start_adding_header();
                                                 }
                                                 // Handle navigation for headers section when not adding
-                                                KeyCode::Left | KeyCode::Right | KeyCode::Up | KeyCode::Down | KeyCode::Tab | 
-                                                KeyCode::BackTab | KeyCode::Esc => {
+                                                KeyCode::Left
+                                                | KeyCode::Right
+                                                | KeyCode::Up
+                                                | KeyCode::Down
+                                                | KeyCode::Tab
+                                                | KeyCode::BackTab
+                                                | KeyCode::Esc => {
                                                     // Fall through to main navigation handling
                                                     handle_common_navigation(app, key);
                                                 }
@@ -262,8 +285,12 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
                                         }
                                     }
                                     // Handle all other detail fields
-                                    DetailField::Url | DetailField::Body | DetailField::AuthType | 
-                                    DetailField::AuthUsername | DetailField::AuthPassword | DetailField::None => {
+                                    DetailField::Url
+                                    | DetailField::Body
+                                    | DetailField::AuthType
+                                    | DetailField::AuthUsername
+                                    | DetailField::AuthPassword
+                                    | DetailField::None => {
                                         handle_common_navigation(app, key);
                                     }
                                 }
@@ -368,9 +395,19 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
 
 fn handle_common_navigation(app: &mut App, key: event::KeyEvent) {
     match key.code {
-        KeyCode::Char('s') => {
-            if key.modifiers.contains(event::KeyModifiers::CONTROL) {
-                app.runtime.block_on(&mut app.send_request());
+        KeyCode::Char(c) => {
+            if c == 's' && key.modifiers.contains(event::KeyModifiers::CONTROL) {
+                // Create a runtime and block on the async operation
+                let rt = tokio::runtime::Runtime::new().unwrap();
+                let _ = rt.block_on(app.send_request());
+            } else {
+                let _ = match app.current_detail_field {
+                    DetailField::Url => app.url_textarea.input(Event::Key(key)),
+                    DetailField::Body => app.body_textarea.input(Event::Key(key)),
+                    DetailField::AuthUsername => app.auth_username_textarea.input(Event::Key(key)),
+                    DetailField::AuthPassword => app.auth_password_textarea.input(Event::Key(key)),
+                    _ => false,
+                };
             }
         }
         KeyCode::Left => {
