@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+reqwest = "0.12.9"
 base64 = "0.22.1"
 crossterm = "0.28.1"
 orange-trees = "0.1.3"
@@ -11,6 +12,8 @@ ratatui = "0.29.0"
 tui-textarea = "0.7.0"
 rat-tree-view = { git = "https://github.com/wyatt-mattas/rat-tree-view.git" }
 mime = "0.3.17"
+openssl = { version = "0.10.68", features = ["vendored"] }
+tokio = { version = "1.42.0", features = ["rt-multi-thread"] }
 
 [dev-dependencies]
 pretty_assertions = "1.4.1"

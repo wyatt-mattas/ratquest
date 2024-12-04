@@ -1,4 +1,8 @@
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    error::Error,
+    time::Duration,
+};
 
 use base64::{prelude::BASE64_STANDARD, Engine};
 use crossterm::event::{self, Event};
@@ -14,6 +18,14 @@ use ratatui::{
 };
 
 use rat_tree_view::{Node, NodeValue, Tree, TreeState, TreeWidget};
+
+pub struct RequestResponse {
+    pub status: u16,
+    pub status_text: String,
+    pub headers: HashMap<String, String>,
+    pub body: String,
+    pub time_taken: Duration,
+}
 
 #[derive(PartialEq)]
 pub enum ParameterInputMode {
@@ -265,6 +277,8 @@ pub struct App {
     pub params_value_input: String,
     pub adding_params: bool,
     pub params_input_mode: ParameterInputMode,
+    pub is_sending: bool,
+    pub last_response: Option<RequestResponse>,
 }
 
 impl RequestType {
@@ -343,12 +357,79 @@ impl App {
             params_value_input: String::new(),
             adding_params: false,
             params_input_mode: ParameterInputMode::Key,
+            is_sending: false,
+            last_response: None,
         };
 
         let initial_tree = app.build_tree();
         app.tree_state.select(&initial_tree, initial_tree.root());
 
         app
+    }
+
+    pub async fn send_request(&mut self) -> Result<(), Box<dyn Error>> {
+        // First get all data we need
+        let request_data = if let Some(request) = self.get_selected_request() {
+            Some((
+                request.request_type.clone(),
+                request.details.url.clone(),
+                request.details.body.clone(),
+                request.details.headers.clone(),
+                request.details.params.clone(),
+            ))
+        } else {
+            None
+        };
+
+        // Then use the data to send the request
+        if let Some((request_type, url, body, headers, params)) = request_data {
+            self.is_sending = true;
+
+            let client = reqwest::Client::new();
+
+            let mut builder = match request_type {
+                RequestType::GET => client.get(&url),
+                RequestType::POST => client.post(&url),
+                RequestType::PUT => client.put(&url),
+                RequestType::DELETE => client.delete(&url),
+                RequestType::PATCH => client.patch(&url),
+            };
+
+            // Add headers
+            for (key, value) in headers {
+                builder = builder.header(key, value);
+            }
+
+            // Add query parameters
+            for (key, value) in params {
+                builder = builder.query(&[(key, value)]);
+            }
+
+            // Add body for non-GET requests
+            if !matches!(request_type, RequestType::GET) {
+                builder = builder.body(body);
+            }
+
+            let start = std::time::Instant::now();
+            let response = builder.send().await?;
+            let duration = start.elapsed();
+
+            // Store response
+            self.last_response = Some(RequestResponse {
+                status: response.status().as_u16(),
+                status_text: response.status().to_string(),
+                headers: response
+                    .headers()
+                    .iter()
+                    .map(|(k, v)| (k.to_string(), v.to_str().unwrap_or("").to_string()))
+                    .collect(),
+                body: response.text().await?,
+                time_taken: duration,
+            });
+
+            self.is_sending = false;
+        }
+        Ok(())
     }
 
     pub fn start_adding_params(&mut self) {
@@ -362,13 +443,13 @@ impl App {
         // Clone values first to avoid borrow conflicts
         let key = self.params_key_input.clone();
         let value = self.params_value_input.clone();
-    
+
         if !key.is_empty() && !value.is_empty() {
             if let Some(request) = self.get_selected_request_mut() {
                 request.details.params.insert(key, value);
             }
         }
-        
+
         self.adding_params = false;
         self.params_key_input.clear();
         self.params_value_input.clear();
@@ -392,7 +473,7 @@ impl App {
         // Clone values first to avoid borrow conflicts
         let key = self.header_key_input.clone();
         let value = self.header_value_input.clone();
-    
+
         if !key.is_empty() && !value.is_empty() {
             // Check authorization outside of the mutable borrow
             if key.to_lowercase() != "authorization" {
@@ -401,7 +482,7 @@ impl App {
                 }
             }
         }
-        
+
         self.adding_header = false;
         self.header_key_input.clear();
         self.header_value_input.clear();
