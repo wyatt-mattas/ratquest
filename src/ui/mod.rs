@@ -1,5 +1,7 @@
+pub mod components;
 mod home;
 mod popups;
+// pub use components;
 pub use home::centered_rect;
 pub use home::ui;
 pub use popups::{

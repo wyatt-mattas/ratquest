@@ -1,14 +1,14 @@
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Style},
-    text::{Line, Span, Text},
+    text::{Line, Span},
     widgets::{Block, Borders, Paragraph, Wrap},
     Frame,
 };
 
-use std::rc::Rc;
+use crate::ui::components::{detail_view_component, render_tree, title_block_component};
 
-use crate::app::{ActivePanel, App, CurrentScreen, DetailField, Groups};
+use crate::app::{App, CurrentScreen, DetailField, Groups};
 use crate::ui::popups::{
     add_request_popup, editing_popup, exiting_popup, render_header_popup, render_params_popup,
 };
@@ -25,35 +25,6 @@ pub fn ui(frame: &mut Frame, app: &mut App) {
     if app.adding_params {
         render_params_popup(frame, app);
     }
-}
-
-fn title_block_component(frame: &mut Frame, chunks: &Rc<[Rect]>) {
-    let title_block = Block::default()
-        .borders(Borders::ALL)
-        .style(Style::default());
-
-    let title = Paragraph::new(Text::styled(
-        "API Groups",
-        Style::default().fg(Color::Green),
-    ))
-    .block(title_block);
-
-    frame.render_widget(title, chunks[0]);
-}
-
-fn render_tree(frame: &mut Frame, app: &mut App, chunks: &Rc<[Rect]>) {
-    let tree_block = Block::default()
-        .borders(Borders::ALL)
-        .title("API Groups")
-        .border_style(if app.active_panel == ActivePanel::Tree {
-            Style::default().fg(Color::Yellow)
-        } else {
-            Style::default()
-        });
-
-    let tree_area = tree_block.inner(chunks[0]);
-    frame.render_widget(tree_block, chunks[0]);
-    app.render_tree_view(frame, tree_area);
 }
 
 fn render_base_ui(frame: &mut Frame, app: &mut App) {
@@ -78,17 +49,7 @@ fn render_base_ui(frame: &mut Frame, app: &mut App) {
     render_tree(frame, app, &inner_layout);
 
     // Update the details block:
-    let details_block = Block::default()
-        .borders(Borders::ALL)
-        .title("Details")
-        .border_style(if app.active_panel == ActivePanel::Details {
-            Style::default().fg(Color::Yellow)
-        } else {
-            Style::default()
-        });
-
-    let inner_area = details_block.inner(inner_layout[1]);
-    frame.render_widget(details_block, inner_layout[1]);
+    let inner_area = detail_view_component(app, inner_layout, frame);
 
     // Render the details view in the right panel
     if let Some(request) = app.get_current_request() {
