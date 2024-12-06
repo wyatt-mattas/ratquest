@@ -6,6 +6,8 @@ use ratatui::{
     Frame,
 };
 
+use std::rc::Rc;
+
 use crate::app::{ActivePanel, App, CurrentScreen, DetailField, Groups};
 use crate::ui::popups::{
     add_request_popup, editing_popup, exiting_popup, render_header_popup, render_params_popup,
@@ -25,17 +27,7 @@ pub fn ui(frame: &mut Frame, app: &mut App) {
     }
 }
 
-fn render_base_ui(frame: &mut Frame, app: &mut App) {
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(3),
-            Constraint::Min(1),
-            Constraint::Length(3),
-        ])
-        .split(frame.area());
-
-    // Title
+fn title_block_component(frame: &mut Frame, chunks: &Rc<[Rect]>) {
     let title_block = Block::default()
         .borders(Borders::ALL)
         .style(Style::default());
@@ -47,13 +39,9 @@ fn render_base_ui(frame: &mut Frame, app: &mut App) {
     .block(title_block);
 
     frame.render_widget(title, chunks[0]);
+}
 
-    // Main body layout
-    let inner_layout = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints(vec![Constraint::Percentage(25), Constraint::Percentage(75)])
-        .split(chunks[1]);
-
+fn render_tree(frame: &mut Frame, app: &mut App, chunks: &Rc<[Rect]>) {
     let tree_block = Block::default()
         .borders(Borders::ALL)
         .title("API Groups")
@@ -63,9 +51,31 @@ fn render_base_ui(frame: &mut Frame, app: &mut App) {
             Style::default()
         });
 
-    let tree_area = tree_block.inner(inner_layout[0]);
-    frame.render_widget(tree_block, inner_layout[0]);
+    let tree_area = tree_block.inner(chunks[0]);
+    frame.render_widget(tree_block, chunks[0]);
     app.render_tree_view(frame, tree_area);
+}
+
+fn render_base_ui(frame: &mut Frame, app: &mut App) {
+    let chunks: std::rc::Rc<[Rect]> = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3),
+            Constraint::Min(1),
+            Constraint::Length(3),
+        ])
+        .split(frame.area());
+
+    // Title
+    title_block_component(frame, &chunks);
+
+    // Main body layout
+    let inner_layout = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints(vec![Constraint::Percentage(25), Constraint::Percentage(75)])
+        .split(chunks[1]);
+
+    render_tree(frame, app, &inner_layout);
 
     // Update the details block:
     let details_block = Block::default()
