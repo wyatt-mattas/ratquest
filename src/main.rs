@@ -20,12 +20,15 @@ use std::io;
 
 use ui::ui;
 
+use std::io::BufWriter;
+
 fn main() -> Result<(), io::Error> {
     // Terminal initialization
     enable_raw_mode()?;
-    let mut stderr = io::stderr();
-    execute!(stderr, EnterAlternateScreen, EnableMouseCapture)?;
-    let backend = CrosstermBackend::new(stderr);
+    let stderr = io::stderr();
+    let mut writer = BufWriter::new(stderr);
+    execute!(writer, EnterAlternateScreen, EnableMouseCapture)?;
+    let backend = CrosstermBackend::new(writer);
     let mut terminal = Terminal::new(backend)?;
 
     // Create app and run it
