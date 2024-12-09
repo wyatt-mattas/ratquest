@@ -1,4 +1,4 @@
-use crate::{app::HeaderInputMode, ui::centered_rect, RequestType};
+use crate::{app::ui_state::HeaderInputMode, ui::centered_rect, RequestType};
 use ratatui::{
     layout::{Constraint, Direction, Layout},
     style::{Color, Style},
@@ -7,7 +7,8 @@ use ratatui::{
     Frame,
 };
 
-use crate::app::{App, ParameterInputMode};
+use crate::app::state::App;
+use crate::app::ui_state::ParameterInputMode;
 
 pub fn add_request_popup(frame: &mut Frame, app: &App) {
     let popup_block = Block::default()

@@ -8,26 +8,8 @@ use ratatui::{
 
 use std::rc::Rc;
 
-use crate::{app::ActivePanel, App};
-
-pub fn detail_view_component(
-    app: &mut App,
-    inner_layout: std::rc::Rc<[Rect]>,
-    frame: &mut Frame<'_>,
-) -> Rect {
-    let details_block = Block::default()
-        .borders(Borders::ALL)
-        .title("Details")
-        .border_style(if app.active_panel == ActivePanel::Details {
-            Style::default().fg(Color::Yellow)
-        } else {
-            Style::default()
-        });
-
-    let inner_area = details_block.inner(inner_layout[1]);
-    frame.render_widget(details_block, inner_layout[1]);
-    inner_area
-}
+use crate::app::state::App;
+use crate::app::ui_state::{ActivePanel, DetailField};
 
 pub fn title_block_component(frame: &mut Frame, chunks: &Rc<[Rect]>) {
     let title_block = Block::default()
@@ -43,7 +25,7 @@ pub fn title_block_component(frame: &mut Frame, chunks: &Rc<[Rect]>) {
     frame.render_widget(title, chunks[0]);
 }
 
-pub fn render_tree(frame: &mut Frame, app: &mut App, chunks: &Rc<[Rect]>) {
+pub fn render_groups(frame: &mut Frame, app: &mut App, chunks: &Rc<[Rect]>) {
     let tree_block = Block::default()
         .borders(Borders::ALL)
         .title("API Groups")
@@ -56,4 +38,27 @@ pub fn render_tree(frame: &mut Frame, app: &mut App, chunks: &Rc<[Rect]>) {
     let tree_area = tree_block.inner(chunks[0]);
     frame.render_widget(tree_block, chunks[0]);
     app.render_tree_view(frame, tree_area);
+}
+
+pub fn render_body_section(frame: &mut Frame, app: &App, area: Rect) {
+    let body_block = Block::default()
+        .borders(Borders::ALL)
+        .title("Body")
+        .border_style(if app.current_detail_field == DetailField::Body {
+            Style::default().fg(Color::Yellow)
+        } else {
+            Style::default()
+        });
+
+    let body_area = body_block.inner(area);
+    frame.render_widget(body_block, area);
+
+    if app.current_detail_field == DetailField::Body {
+        frame.render_widget(&app.body_textarea, body_area);
+    } else {
+        frame.render_widget(
+            Paragraph::new(app.body_textarea.lines().join("\n")).style(Style::default()),
+            body_area,
+        );
+    }
 }

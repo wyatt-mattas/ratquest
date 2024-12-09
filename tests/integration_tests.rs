@@ -1,4 +1,8 @@
-use ratquest::app::{ApiRequest, App, AuthDetails, AuthType, BasicAuth, RequestType};
+pub use ratquest::app::models::{
+    ApiRequest, AuthDetails, AuthType, BasicAuth, RequestDetails, RequestType,
+};
+pub use ratquest::app::state::{App, CurrentScreen};
+pub use ratquest::app::ui_state::DetailField;
 
 mod app_integration_tests {
     use super::*;
