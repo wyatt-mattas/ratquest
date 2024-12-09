@@ -1,10 +1,12 @@
 pub mod app;
 pub mod ui;
+pub mod ui_components;
+pub use app::models::{ApiRequest, AuthDetails, AuthType, BasicAuth, RequestDetails, RequestType};
+pub use app::state::{App, CurrentScreen};
+pub use app::ui_state::DetailField;
+use app::ui_state::{ActivePanel, HeaderInputMode};
+use app::{state::Groups, ui_state::ParameterInputMode};
 
-use app::{
-    ActivePanel, App, CurrentScreen, DetailField, Groups, HeaderInputMode, ParameterInputMode,
-    RequestType,
-};
 use ratatui::crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind},
     execute,

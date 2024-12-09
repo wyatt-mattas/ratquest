@@ -1,133 +1,19 @@
-use std::{
-    collections::{HashMap, HashSet},
-    error::Error,
-    time::Duration,
-};
-
 use base64::{prelude::BASE64_STANDARD, Engine};
 use crossterm::event::{self, Event};
-use ratatui::widgets::Block;
-// use std::collections::HashMap;
-// use tui_realm_treeview::{Node, NodeValue, Tree, TreeState, TreeWidget};
-use tui_textarea::TextArea;
-// use tuirealm::props::Alignment;
+use rat_tree_view::{TreeState, TreeWidget};
 use ratatui::{
     layout::Rect,
     style::{Color, Style},
+    widgets::Block,
     Frame,
 };
+use std::collections::{HashMap, HashSet};
+use std::error::Error;
+use tui_textarea::TextArea;
 
-use rat_tree_view::{Node, NodeValue, Tree, TreeState, TreeWidget};
-
-pub struct RequestResponse {
-    pub status: u16,
-    pub status_text: String,
-    pub headers: HashMap<String, String>,
-    pub body: String,
-    pub time_taken: Duration,
-}
-
-#[derive(PartialEq)]
-pub enum ParameterInputMode {
-    Key,
-    Value,
-}
-
-#[derive(PartialEq)]
-pub enum HeaderInputMode {
-    Key,
-    Value,
-}
-
-#[derive(PartialEq)]
-pub enum ActivePanel {
-    Tree,
-    Details,
-}
-
-#[derive(Clone, Debug)]
-pub enum AuthType {
-    None,
-    Basic,
-    // We can add more auth types later like:
-    // Bearer,
-    // OAuth2,
-    // etc.
-}
-
-impl AuthType {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            AuthType::None => "None",
-            AuthType::Basic => "Basic",
-        }
-    }
-
-    pub fn next(&self) -> Self {
-        match self {
-            AuthType::None => AuthType::Basic,
-            AuthType::Basic => AuthType::None,
-        }
-    }
-
-    pub fn previous(&self) -> Self {
-        match self {
-            AuthType::None => AuthType::Basic,
-            AuthType::Basic => AuthType::None,
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct BasicAuth {
-    pub username: String,
-    pub password: String,
-}
-
-#[derive(Clone, Debug)]
-pub enum AuthDetails {
-    None,
-    Basic(BasicAuth),
-}
-
-#[derive(Clone, Debug)]
-pub struct RequestDetails {
-    pub url: String,
-    pub body: String,
-    pub params: HashMap<String, String>,
-    pub headers: HashMap<String, String>,
-    pub auth_type: AuthType,
-    pub auth_details: AuthDetails,
-}
-
-impl RequestDetails {
-    pub fn new() -> Self {
-        Self {
-            url: String::new(),
-            body: String::new(),
-            params: HashMap::new(),
-            headers: HashMap::new(),
-            auth_type: AuthType::None,
-            auth_details: AuthDetails::None,
-        }
-    }
-
-    pub fn get_basic_auth(&self) -> Option<&BasicAuth> {
-        if let AuthDetails::Basic(basic) = &self.auth_details {
-            Some(basic)
-        } else {
-            None
-        }
-    }
-
-    pub fn get_basic_auth_mut(&mut self) -> Option<&mut BasicAuth> {
-        if let AuthDetails::Basic(basic) = &mut self.auth_details {
-            Some(basic)
-        } else {
-            None
-        }
-    }
-}
+use super::models::*;
+use super::requests::RequestResponse;
+use super::ui_state::*;
 
 #[derive(PartialEq)]
 pub enum CurrentScreen {
@@ -136,132 +22,29 @@ pub enum CurrentScreen {
     Deleting,
     DeleteConfirm,
     AddingRequest,
-    RequestDetail, // New screen type
+    RequestDetail,
     Exiting,
-}
-
-#[derive(Clone, Debug)]
-pub struct ApiRequest {
-    pub name: String,
-    pub request_type: RequestType,
-    pub details: RequestDetails, // Add details field
 }
 
 pub enum Groups {
     Name,
 }
 
-#[derive(Clone, Debug)]
-pub enum RequestType {
-    GET,
-    POST,
-    PUT,
-    DELETE,
-    PATCH,
-}
-
-#[derive(PartialEq, Clone)]
-pub enum DetailField {
-    Url,
-    Body,
-    Params,
-    Headers,
-    AuthType,
-    AuthUsername,
-    AuthPassword,
-    None,
-}
-
-impl ApiRequest {
-    pub fn new(name: String, request_type: RequestType) -> Self {
-        Self {
-            name,
-            request_type,
-            details: RequestDetails {
-                url: String::new(),
-                body: String::new(),
-                params: HashMap::new(),
-                headers: HashMap::new(),
-                auth_type: AuthType::None,
-                auth_details: AuthDetails::None,
-            },
-        }
-    }
-}
-
-// First implement Default for ApiRequest
-impl Default for ApiRequest {
-    fn default() -> Self {
-        Self {
-            name: String::new(),
-            request_type: RequestType::GET,
-            details: RequestDetails {
-                url: String::new(),
-                body: String::new(),
-                params: HashMap::new(),
-                headers: HashMap::new(),
-                auth_type: AuthType::None,
-                auth_details: AuthDetails::None,
-            },
-        }
-    }
-}
-
-impl NodeValue for ApiRequest {
-    fn render_parts_iter(&self) -> impl Iterator<Item = (&str, Option<Style>)> {
-        // Create a TextSpan for the request
-        let request_style = Style::default().fg(match self.request_type {
-            RequestType::GET => Color::Green,
-            RequestType::POST => Color::Blue,
-            RequestType::PUT => Color::Yellow,
-            RequestType::DELETE => Color::Red,
-            RequestType::PATCH => Color::Magenta,
-        });
-
-        std::iter::once((&self.name[..], Some(request_style)))
-    }
-}
-
-#[derive(Default, Clone)]
-pub struct TreeNode {
-    text: String,
-    style: Option<Style>,
-}
-
-impl TreeNode {
-    fn new(text: String) -> Self {
-        Self { text, style: None }
-    }
-
-    fn with_style(text: String, style: Style) -> Self {
-        Self {
-            text,
-            style: Some(style),
-        }
-    }
-}
-
-impl NodeValue for TreeNode {
-    fn render_parts_iter(&self) -> impl Iterator<Item = (&str, Option<Style>)> {
-        vec![(self.text.as_str(), self.style)].into_iter()
-    }
-}
-
 pub struct App {
     pub key_input: String,
     pub request_name_input: String,
     pub current_screen: CurrentScreen,
-    pub list: HashMap<String, Vec<ApiRequest>>, // Changed from HashSet to HashMap to store requests
+    pub list: HashMap<String, Vec<ApiRequest>>,
     pub groups: Option<Groups>,
     pub selected_index: usize,
     pub groups_vec: Vec<String>,
     pub selected_request_type: RequestType,
     pub selected_group: Option<String>,
-    pub minimized_groups: HashSet<String>, // Track which groups are minimized
-    pub selected_group_index: Option<usize>, // Track selected group in main view
+    pub minimized_groups: HashSet<String>,
+    pub selected_group_index: Option<usize>,
     pub selected_request_index: Option<usize>,
-    pub current_detail_field: DetailField, // Track which field is being edited
-    pub temp_selected_request_index: Option<usize>, // For highlighting in main view
+    pub current_detail_field: DetailField,
+    pub temp_selected_request_index: Option<usize>,
     pub url_textarea: TextArea<'static>,
     pub body_textarea: TextArea<'static>,
     pub auth_username_textarea: TextArea<'static>,
@@ -279,38 +62,6 @@ pub struct App {
     pub params_input_mode: ParameterInputMode,
     pub is_sending: bool,
     pub last_response: Option<RequestResponse>,
-}
-
-impl RequestType {
-    pub fn next(&self) -> Self {
-        match self {
-            RequestType::GET => RequestType::POST,
-            RequestType::POST => RequestType::PUT,
-            RequestType::PUT => RequestType::DELETE,
-            RequestType::DELETE => RequestType::PATCH,
-            RequestType::PATCH => RequestType::GET,
-        }
-    }
-
-    pub fn previous(&self) -> Self {
-        match self {
-            RequestType::GET => RequestType::PATCH,
-            RequestType::POST => RequestType::GET,
-            RequestType::PUT => RequestType::POST,
-            RequestType::DELETE => RequestType::PUT,
-            RequestType::PATCH => RequestType::DELETE,
-        }
-    }
-
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            RequestType::GET => "GET",
-            RequestType::POST => "POST",
-            RequestType::PUT => "PUT",
-            RequestType::DELETE => "DELETE",
-            RequestType::PATCH => "PATCH",
-        }
-    }
 }
 
 impl App {
@@ -528,46 +279,6 @@ impl App {
                 _ => false,
             }
         }
-    }
-
-    pub fn build_tree(&self) -> Tree<TreeNode> {
-        let mut root = Node::new("/".to_string(), TreeNode::new("API Groups".to_string()));
-
-        // Add each group as a child of the root
-        for (group_name, requests) in &self.list {
-            let mut group_node = Node::new(
-                format!("group-{}", group_name),
-                TreeNode::new(group_name.clone()),
-            );
-
-            // Add requests as children of the group
-            for request in requests {
-                // Create a unique ID for the request
-                let request_id = format!("request-{}-{}", group_name, request.name);
-
-                // Create the display text with color formatting
-                let (symbol, style) = match request.request_type {
-                    RequestType::GET => ("○", Style::default().fg(Color::Green)),
-                    RequestType::POST => ("+", Style::default().fg(Color::Blue)),
-                    RequestType::PUT => ("↺", Style::default().fg(Color::Yellow)),
-                    RequestType::DELETE => ("-", Style::default().fg(Color::Red)),
-                    RequestType::PATCH => ("~", Style::default().fg(Color::Magenta)),
-                };
-
-                let display_text = format!(
-                    "{} {} {}",
-                    symbol,
-                    request.request_type.as_str(),
-                    request.name
-                );
-                let request_node = Node::new(request_id, TreeNode::with_style(display_text, style));
-                group_node.add_child(request_node);
-            }
-
-            root.add_child(group_node);
-        }
-
-        Tree::new(root)
     }
 
     pub fn render_tree_view(&mut self, frame: &mut Frame, area: Rect) {

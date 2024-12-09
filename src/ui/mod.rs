@@ -1,2 +1,6 @@
 mod home;
-pub use home::ui;
+mod popups;
+pub use home::{centered_rect, ui};
+pub use popups::{
+    add_request_popup, editing_popup, exiting_popup, render_header_popup, render_params_popup,
+};
