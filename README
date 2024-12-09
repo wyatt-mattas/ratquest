@@ -2,7 +2,7 @@
 
 A delightful Terminal UI application for testing and managing your API requests with style! Built with Rust and love for developer productivity.
 
-![RatQuest Terminal UI](https://raw.githubusercontent.com/wyatt-mattas/ratquest/main/screenshots/main.png)
+![RatQuest Terminal UI](screenshots/main.png)
 
 ## ✨ Features
 
