@@ -14,6 +14,8 @@ rat-tree-view = { git = "https://github.com/wyatt-mattas/rat-tree-view.git" }
 mime = "0.3.17"
 openssl = { version = "0.10.68", features = ["vendored"] }
 tokio = { version = "1.42.0", features = ["rt-multi-thread"] }
+rusqlite = { version = "0.32.1", features = ["bundled"] }
+thiserror = "2.0.6"
 
 [dev-dependencies]
 pretty_assertions = "1.4.1"

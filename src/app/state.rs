@@ -11,6 +11,7 @@ use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use tui_textarea::TextArea;
 
+use super::database::Database;
 use super::models::*;
 use super::requests::RequestResponse;
 use super::ui_state::*;
@@ -63,6 +64,7 @@ pub struct App {
     pub is_sending: bool,
     pub last_response: Option<RequestResponse>,
     pub pending_delete_id: Option<String>,
+    pub db: Option<Database>,
 }
 
 impl App {
@@ -78,6 +80,8 @@ impl App {
 
         let mut auth_password_textarea = TextArea::default();
         auth_password_textarea.set_cursor_line_style(Style::default());
+
+        let db = Database::new("ratquest.db").ok();
 
         let mut app = Self {
             key_input: String::new(),
@@ -112,10 +116,23 @@ impl App {
             is_sending: false,
             last_response: None,
             pending_delete_id: None,
+            db,
         };
 
         let initial_tree = app.build_tree();
         app.tree_state.select(&initial_tree, initial_tree.root());
+
+        // Load initial data from database
+        if let Some(db) = &app.db {
+            if let Ok(groups) = db.get_all_groups() {
+                for (group_id, group_name) in groups {
+                    if let Ok(requests) = db.get_requests_for_group(group_id) {
+                        app.list.insert(group_name, requests);
+                    }
+                }
+                app.update_groups_vec();
+            }
+        }
 
         app
     }
@@ -552,10 +569,14 @@ impl App {
 
     pub fn save_group(&mut self) {
         if !self.key_input.is_empty() {
-            self.list.insert(self.key_input.clone(), Vec::new());
+            if let Some(db) = &self.db {
+                if let Ok(_) = db.create_group(&self.key_input) {
+                    self.list.insert(self.key_input.clone(), Vec::new());
+                    self.update_groups_vec();
+                }
+            }
             self.key_input.clear();
             self.groups = None;
-            self.update_groups_vec();
         }
     }
 
@@ -685,11 +706,17 @@ impl App {
             if id.starts_with("request-") {
                 let parts: Vec<&str> = id.splitn(3, '-').collect();
                 if parts.len() == 3 {
-                    return format!("Are you sure you want to delete request '{}'? (y/n)", parts[2]);
+                    return format!(
+                        "Are you sure you want to delete request '{}'? (y/n)",
+                        parts[2]
+                    );
                 }
             } else if id.starts_with("group-") {
                 let group_name = id.strip_prefix("group-").unwrap();
-                return format!("Are you sure you want to delete group '{}' and all its requests? (y/n)", group_name);
+                return format!(
+                    "Are you sure you want to delete group '{}' and all its requests? (y/n)",
+                    group_name
+                );
             }
         }
         "Are you sure you want to delete this item? (y/n)".to_string()
@@ -703,17 +730,19 @@ impl App {
                 if parts.len() == 3 {
                     let group_name = parts[1].to_string();
                     let request_name = parts[2].to_string();
-                    
+
                     if let Some(requests) = self.list.get_mut(&group_name) {
                         if let Some(pos) = requests.iter().position(|r| r.name == request_name) {
                             requests.remove(pos);
-                            
+
                             // Update tree state after deletion
                             let tree = self.build_tree();
-                            if let Some(group_node) = tree.root().query(&format!("group-{}", group_name)) {
+                            if let Some(group_node) =
+                                tree.root().query(&format!("group-{}", group_name))
+                            {
                                 self.tree_state.select(&tree, group_node);
                             }
-                            
+
                             // Clear request selection
                             self.selected_request_index = None;
                         }
@@ -729,13 +758,13 @@ impl App {
                 let group_name = selected_id.strip_prefix("group-").unwrap().to_string();
                 self.list.remove(&group_name);
                 self.update_groups_vec();
-                
+
                 // Update tree state after deletion
                 let tree = self.build_tree();
                 if let Some(root) = tree.root().query(&"/".to_string()) {
                     self.tree_state.select(&tree, root);
                 }
-                
+
                 // Clear selections
                 self.selected_group_index = None;
                 self.selected_request_index = None;
