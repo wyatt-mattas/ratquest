@@ -235,3 +235,23 @@ pub fn render_params_popup(frame: &mut Frame, app: &mut App) {
     .style(Style::default().fg(Color::Gray));
     frame.render_widget(instructions, inner_area[2]);
 }
+
+pub fn delete_confirmation_popup(frame: &mut Frame, app: &App) {
+    let popup_block = Block::default()
+        .title("Delete Confirmation")
+        .borders(Borders::ALL)
+        .style(Style::default().bg(Color::DarkGray));
+
+    let area = centered_rect(60, 25, frame.area());
+    frame.render_widget(Clear, area);
+
+    let confirmation_text = Text::styled(
+        app.get_delete_confirmation_message(),
+        Style::default().fg(Color::Red),
+    );
+    let confirmation_paragraph = Paragraph::new(confirmation_text)
+        .block(popup_block)
+        .wrap(Wrap { trim: false });
+
+    frame.render_widget(confirmation_paragraph, area);
+}

@@ -123,9 +123,8 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) -> io::Result<
                                     app.groups = Some(Groups::Name);
                                 }
                                 KeyCode::Char('d') => {
-                                    if !app.list.is_empty() {
-                                        app.update_groups_vec();
-                                        app.current_screen = CurrentScreen::Deleting;
+                                    if app.tree_state.selected().is_some() {
+                                        app.start_delete_confirmation();
                                     }
                                 }
                                 KeyCode::Char('a') => {

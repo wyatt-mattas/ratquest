@@ -39,7 +39,7 @@ pub fn render_footer(frame: &mut Frame, app: &App, area: Rect) {
         .block(Block::default().borders(Borders::ALL));
 
     let current_keys_hint = match app.current_screen {
-        CurrentScreen::Main => "(q) quit / (e) new group / (a) add request / (↑↓) select group / (→ ←) minimize/maximize group / (→) Details Pane on Request",
+        CurrentScreen::Main => "(q) quit / (e) new group / (a) add request / (d) delete / (↑↓) select / (→ ←) minimize/maximize / (→) Details",
         CurrentScreen::Editing => "(ESC) cancel / (Enter) save",
         CurrentScreen::Deleting => "(↑/↓) select group / (Enter) confirm / (ESC) cancel",
         CurrentScreen::DeleteConfirm => "Are you sure you want to delete this group? (y/n)",

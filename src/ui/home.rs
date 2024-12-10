@@ -12,6 +12,8 @@ use crate::ui_components;
 use ui_components::details::*;
 use ui_components::footer::*;
 use ui_components::groups::*;
+
+use super::popups::delete_confirmation_popup;
 pub fn ui(frame: &mut Frame, app: &mut App) {
     // First render all the regular UI elements
     render_base_ui(frame, app);
@@ -95,6 +97,10 @@ pub fn render_base_ui(frame: &mut Frame, app: &mut App) {
 
     if app.current_screen == CurrentScreen::AddingRequest {
         add_request_popup(frame, app);
+    }
+
+    if app.current_screen == CurrentScreen::DeleteConfirm {
+        delete_confirmation_popup(frame, app);
     }
 }
 

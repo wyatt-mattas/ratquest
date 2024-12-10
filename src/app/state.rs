@@ -62,6 +62,7 @@ pub struct App {
     pub params_input_mode: ParameterInputMode,
     pub is_sending: bool,
     pub last_response: Option<RequestResponse>,
+    pub pending_delete_id: Option<String>,
 }
 
 impl App {
@@ -110,6 +111,7 @@ impl App {
             params_input_mode: ParameterInputMode::Key,
             is_sending: false,
             last_response: None,
+            pending_delete_id: None,
         };
 
         let initial_tree = app.build_tree();
@@ -659,14 +661,85 @@ impl App {
         self.selected_request_type = self.selected_request_type.previous();
     }
 
+    pub fn start_delete_confirmation(&mut self) {
+        if let Some(selected_id) = self.tree_state.selected() {
+            self.current_screen = CurrentScreen::DeleteConfirm;
+            // Store the ID to be deleted so we can reference it in the confirmation
+            self.pending_delete_id = Some(selected_id.to_string());
+        }
+    }
+
     pub fn confirm_delete_selected(&mut self) {
-        if !self.groups_vec.is_empty() {
-            let group_to_delete = self.groups_vec[self.selected_index].clone();
-            self.list.remove(&group_to_delete);
-            self.update_groups_vec();
-            self.selected_index = self
-                .selected_index
-                .min(self.groups_vec.len().saturating_sub(1));
+        if let Some(id) = &self.pending_delete_id {
+            if id.starts_with("request-") {
+                self.delete_selected_request();
+            } else if id.starts_with("group-") {
+                self.delete_selected_group();
+            }
+        }
+        self.pending_delete_id = None;
+    }
+
+    pub fn get_delete_confirmation_message(&self) -> String {
+        if let Some(id) = &self.pending_delete_id {
+            if id.starts_with("request-") {
+                let parts: Vec<&str> = id.splitn(3, '-').collect();
+                if parts.len() == 3 {
+                    return format!("Are you sure you want to delete request '{}'? (y/n)", parts[2]);
+                }
+            } else if id.starts_with("group-") {
+                let group_name = id.strip_prefix("group-").unwrap();
+                return format!("Are you sure you want to delete group '{}' and all its requests? (y/n)", group_name);
+            }
+        }
+        "Are you sure you want to delete this item? (y/n)".to_string()
+    }
+
+    // Previous delete methods remain the same
+    pub fn delete_selected_request(&mut self) {
+        if let Some(selected_id) = &self.pending_delete_id {
+            if selected_id.starts_with("request-") {
+                let parts: Vec<&str> = selected_id.splitn(3, '-').collect();
+                if parts.len() == 3 {
+                    let group_name = parts[1].to_string();
+                    let request_name = parts[2].to_string();
+                    
+                    if let Some(requests) = self.list.get_mut(&group_name) {
+                        if let Some(pos) = requests.iter().position(|r| r.name == request_name) {
+                            requests.remove(pos);
+                            
+                            // Update tree state after deletion
+                            let tree = self.build_tree();
+                            if let Some(group_node) = tree.root().query(&format!("group-{}", group_name)) {
+                                self.tree_state.select(&tree, group_node);
+                            }
+                            
+                            // Clear request selection
+                            self.selected_request_index = None;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn delete_selected_group(&mut self) {
+        if let Some(selected_id) = &self.pending_delete_id {
+            if selected_id.starts_with("group-") {
+                let group_name = selected_id.strip_prefix("group-").unwrap().to_string();
+                self.list.remove(&group_name);
+                self.update_groups_vec();
+                
+                // Update tree state after deletion
+                let tree = self.build_tree();
+                if let Some(root) = tree.root().query(&"/".to_string()) {
+                    self.tree_state.select(&tree, root);
+                }
+                
+                // Clear selections
+                self.selected_group_index = None;
+                self.selected_request_index = None;
+            }
         }
     }
 
