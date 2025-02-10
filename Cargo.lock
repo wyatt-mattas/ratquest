@@ -996,6 +996,7 @@ dependencies = [
  "reqwest",
  "tokio",
  "tui-textarea",
+ "tui-tree-widget",
 ]
 
 [[package]]
@@ -1392,7 +1393,7 @@ dependencies = [
  "fastrand",
  "once_cell",
  "rustix",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -1492,6 +1493,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0a5318dd619ed73c52a9417ad19046724effc1287fb75cdcc4eca1d6ac1acbae"
 dependencies = [
  "crossterm",
+ "ratatui",
+ "unicode-width 0.2.0",
+]
+
+[[package]]
+name = "tui-tree-widget"
+version = "0.23.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fcc95ebc9c578c67223514d0e10a75c3b996d1f22dc93a4792475260f7c3c11e"
+dependencies = [
  "ratatui",
  "unicode-width 0.2.0",
 ]
